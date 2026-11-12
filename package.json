@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-tweaks",
+  "version": "0.1.0",
+  "description": "Opt-in settings and small interface improvements for OpenCode.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "author": "FURYMOB",
+  "homepage": "https://github.com/furymob-git/opencode-tweaks#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furymob-git/opencode-tweaks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/furymob-git/opencode-tweaks/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "tui",
+    "settings"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "npm run typecheck && npm run lint"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.2.7"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.8.1",
+    "@opentui/solid": ">=0.8.1",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.7",
+    "@opentui/core": "^0.8.4",
+    "@opentui/solid": "^0.8.4",
+    "@types/node": "^24",
+    "solid-js": "^1.9.19",
+    "typescript": "^7.0.2"
+  }
+}
