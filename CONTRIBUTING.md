@@ -91,7 +91,7 @@ Use a merge commit. Do not squash, so the feature branch stays readable.
 ## Code
 
 - TypeScript strict mode, no `any` unless a third-party type forces it
-- run `npm run check` before pushing
+- run `npm run check` before pushing; it type checks, lints, and runs the tests
 - formatting is handled by Biome, do not reformat by hand
 - comments explain why something is done, not what the line does
 - keep rendering code separate from data fetching and settings
@@ -100,12 +100,19 @@ Use a merge commit. Do not squash, so the feature branch stays readable.
 
 ## Tweaks
 
+A tweak is a declarative definition in `src/tweaks/<name>.ts`, registered in `src/tweaks/registry.ts`. The `/tweaks`
+menu reads the definition, so do not add a bespoke settings screen.
+
 Each tweak needs:
 
 - a stable id, prefixed with the plugin id when it is registered globally
 - a short entry in the README: what it changes, its default, how to enable it
-- a configuration option only when the default is not obvious
+- a boolean setting with id `enabled` when the tweak can be switched off; the menu uses it for the summary
+- settings grouped by category, with a description that explains the effect rather than the widget
 - no effect when disabled, including timers and network calls
+
+Settings are resolved from the local `/tweaks` value, then `opencode.json` options, then the definition default. The
+menu writes only the local layer, so the configuration file remains the user's to edit.
 
 ## Releases
 
