@@ -6,6 +6,7 @@ import { tokensTweak } from "./tokens"
 import {
   type CostDigits,
   estimateCost,
+  footerMessage,
   formatCost,
   formatTokens,
   isCostDigits,
@@ -113,15 +114,22 @@ function useCounts(props: {
     }, 0),
   )
 
-  // The inline figures follow the newest reply, because that is the turn whose
-  // `tok/s` line the host draws. A prompt with no reply yet keeps the previous
-  // turn on screen instead of blanking the line.
+  // The inline figures describe the turn whose footer is on screen: the host
+  // draws one line per finished turn, so a prompt with no finished reply keeps
+  // the previous turn's figures on its own line.
   const turn = createMemo(() => {
     const sessionID = props.sessionID()
     return sessionID ? replyTurnMessages(messages(sessionID)) : []
   })
 
   const prompt = createMemo(() => sessionTokens(turn(), count()))
+
+  // The footer the figures belong to, so the injector only writes them on that
+  // line and never on the older one while the host catches up.
+  const promptKey = createMemo(() => {
+    const sessionID = props.sessionID()
+    return sessionID ? footerMessage(messages(sessionID))?.id : undefined
+  })
 
   // A reply that has not produced a counter yet is still empty, so it shows no
   // figures rather than a zero cost.
@@ -172,7 +180,7 @@ function useCounts(props: {
   const totalCostLabel = () =>
     enabled() && totalCost() ? formatCost(sessionCost(), costDigits()) : undefined
 
-  return { promptCount, totalCount, promptCostLabel, totalCostLabel }
+  return { enabled, promptKey, promptCount, totalCount, promptCostLabel, totalCostLabel }
 }
 
 /**
@@ -194,12 +202,20 @@ export function TokenInline(props: {
   })
 
   createEffect(() => {
+    if (!counts.enabled()) {
+      props.injector.clear()
+      return
+    }
+
     const count = counts.promptCount()
     const cost = counts.promptCostLabel()
-    props.injector.setLabels({
-      before: count ? ` · ${count} tok` : undefined,
-      after: cost ? ` · ${cost}` : undefined,
-    })
+    props.injector.setLabels(
+      {
+        before: count ? ` · ${count} tok` : undefined,
+        after: cost ? ` · ${cost}` : undefined,
+      },
+      counts.promptKey(),
+    )
   })
 
   return null

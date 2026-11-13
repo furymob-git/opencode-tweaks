@@ -7,6 +7,11 @@ import type { Context } from "@opencode/plugin/tui/context"
  * the counts into that line's text nodes, then repairs itself on a timer because
  * the host rebuilds the line whenever a turn advances.
  *
+ * The host creates one such line per finished turn, so the figures belong to the
+ * line they were first written on. When a newer line appears the figures move to
+ * it, and the line they leave behind keeps the values it had rather than showing
+ * the next turn's.
+ *
  * Nothing here imports the renderer or the reactive runtime. The TUI resolves
  * bare imports in `.tsx` sources only, so this module takes everything it needs
  * from the tree it edits.
@@ -71,29 +76,36 @@ function textOf(node: unknown): string {
 }
 
 /**
- * The newest footer is the last one in tree order, so walking children backwards
- * finds it without touching the rest of the interface.
+ * Every footer in tree order, oldest first. A line always carries spans, and
+ * requiring them keeps the prompt's textarea, which also exposes text, out.
  */
+export function throughputTexts(node: { getChildren(): readonly unknown[] }): HostText[] {
+  const found: HostText[] = []
+
+  const walk = (branch: { getChildren(): readonly unknown[] }) => {
+    for (const child of branch.getChildren()) {
+      const text = asHostText(child)
+      if (text) {
+        if (THROUGHPUT.test(text.plainText) && text.getTextChildren().length > 0) found.push(text)
+        continue
+      }
+
+      const next = child as { getChildren?: unknown }
+      if (typeof next.getChildren === "function") {
+        walk(next as { getChildren(): readonly unknown[] })
+      }
+    }
+  }
+
+  walk(node)
+  return found
+}
+
+/** The newest footer, which is the last one in tree order. */
 export function lastThroughputText(node: {
   getChildren(): readonly unknown[]
 }): HostText | undefined {
-  const children = node.getChildren()
-  for (let index = children.length - 1; index >= 0; index--) {
-    const child = children[index]
-    const text = asHostText(child)
-    if (text) {
-      // A footer always carries spans; requiring them keeps the prompt's
-      // textarea, which also exposes text, out of the way.
-      if (THROUGHPUT.test(text.plainText) && text.getTextChildren().length > 0) return text
-      continue
-    }
-
-    const branch = child as { getChildren?: unknown }
-    if (typeof branch.getChildren !== "function") continue
-    const found = lastThroughputText(branch as { getChildren(): readonly unknown[] })
-    if (found) return found
-  }
-  return undefined
+  return throughputTexts(node).at(-1)
 }
 
 /** The ` · 62.2 tok/s` span the labels are placed around. */
@@ -126,23 +138,39 @@ function textNodeConstructor(span: HostNode): HostNodeConstructor | undefined {
 }
 
 export interface InjectorLabels {
-  /** Text just before the throughput figure, such as the prompt token count. */
+  /** Text just before the throughput figure, such as the turn token count. */
   readonly before?: string
-  /** Text just after it, such as the prompt cost. */
+  /** Text just after it, such as the turn cost. */
   readonly after?: string
 }
 
 export interface TokenInjector {
-  /** The texts to splice, or empty fields to leave the line alone. */
-  setLabels(labels: InjectorLabels): void
+  /**
+   * The figures for the newest footer, tagged with the turn they belong to.
+   * Empty fields hide them there.
+   */
+  setLabels(labels: InjectorLabels, key?: string): void
+  /** Drops every figure, including the ones frozen on earlier lines. */
+  clear(): void
   dispose(): void
+}
+
+/** The nodes written on one footer, and the values they currently hold. */
+interface Placed {
+  values: InjectorLabels
+  beforeNode?: HostNode
+  afterNode?: HostNode
 }
 
 export function createTokenInjector(context: Context): TokenInjector {
   let labels: InjectorLabels = {}
-  let beforeNode: HostNode | undefined
-  let afterNode: HostNode | undefined
+  let key: string | undefined
+  let active: HostText | undefined
+  let activeKey: string | undefined
+  const placed = new Map<HostText, Placed>()
   let timer: ReturnType<typeof setInterval> | undefined
+  /** Keeps the host's renderable ids unique across the lines we annotate. */
+  let serial = 0
 
   /** Dropping a node from the tree is enough; a rebuilt line has no parent. */
   function release(node: HostNode | undefined) {
@@ -156,18 +184,30 @@ export function createTokenInjector(context: Context): TokenInjector {
     node.parent = null
   }
 
-  function detach() {
-    release(beforeNode)
-    release(afterNode)
-    beforeNode = undefined
-    afterNode = undefined
+  function releasePlaced(record: Placed) {
+    release(record.beforeNode)
+    release(record.afterNode)
+    record.beforeNode = undefined
+    record.afterNode = undefined
+  }
+
+  function detachAll() {
+    for (const record of placed.values()) releasePlaced(record)
+    placed.clear()
+    active = undefined
+    activeKey = undefined
   }
 
   function makeNode(span: HostNode, value: string, id: string): HostNode | undefined {
     const Constructor = textNodeConstructor(span)
     if (!Constructor) return undefined
 
-    const node = new Constructor({ id, fg: span.fg, attributes: span.attributes })
+    serial += 1
+    const node = new Constructor({
+      id: `${id}.${serial}`,
+      fg: span.fg,
+      attributes: span.attributes,
+    })
     node.add(value)
     return node
   }
@@ -177,81 +217,158 @@ export function createTokenInjector(context: Context): TokenInjector {
   }
 
   /** Keeps the leading node directly in front of the throughput span. */
-  function placeBefore(target: HostText, span: HostNode): boolean {
-    const value = labels.before
+  function placeBefore(target: HostText, span: HostNode, record: Placed): boolean {
+    const value = record.values.before
     if (!value) {
-      release(beforeNode)
-      beforeNode = undefined
+      release(record.beforeNode)
+      record.beforeNode = undefined
       return true
     }
 
-    if (!beforeNode) {
-      beforeNode = makeNode(span, value, BEFORE_ID)
-      if (!beforeNode) return false
+    if (!record.beforeNode) {
+      record.beforeNode = makeNode(span, value, BEFORE_ID)
+      if (!record.beforeNode) return false
     } else {
-      setText(beforeNode, value)
+      setText(record.beforeNode, value)
     }
 
     const children = target.getTextChildren()
-    const index = children.indexOf(beforeNode)
+    const index = children.indexOf(record.beforeNode)
     if (index !== -1 && children[index + 1] === span) return true
-    if (index !== -1) target.remove(beforeNode)
-    target.insertBefore(beforeNode, span)
+    if (index !== -1) target.remove(record.beforeNode)
+    target.insertBefore(record.beforeNode, span)
     return true
   }
 
   /** Keeps the trailing node directly after the throughput span. */
-  function placeAfter(target: HostText, span: HostNode): boolean {
-    const value = labels.after
+  function placeAfter(target: HostText, span: HostNode, record: Placed): boolean {
+    const value = record.values.after
     if (!value) {
-      release(afterNode)
-      afterNode = undefined
+      release(record.afterNode)
+      record.afterNode = undefined
       return true
     }
 
-    if (!afterNode) {
-      afterNode = makeNode(span, value, AFTER_ID)
-      if (!afterNode) return false
+    if (!record.afterNode) {
+      record.afterNode = makeNode(span, value, AFTER_ID)
+      if (!record.afterNode) return false
     } else {
-      setText(afterNode, value)
+      setText(record.afterNode, value)
     }
 
     const children = target.getTextChildren()
-    const index = children.indexOf(afterNode)
+    const index = children.indexOf(record.afterNode)
     const spanIndex = children.indexOf(span)
     if (index !== -1 && spanIndex !== -1 && index === spanIndex + 1) return true
-    if (index !== -1) target.remove(afterNode)
+    if (index !== -1) target.remove(record.afterNode)
 
     const next = target.getTextChildren()
     const anchor = next[next.indexOf(span) + 1]
     if (anchor) {
-      target.insertBefore(afterNode, anchor)
+      target.insertBefore(record.afterNode, anchor)
     } else if (typeof target.add === "function") {
-      target.add(afterNode)
+      target.add(record.afterNode)
     } else {
       // Without an append, keeping the text on the line beats dropping it.
-      target.insertBefore(afterNode, span)
+      target.insertBefore(record.afterNode, span)
     }
     return true
   }
 
+  /** Writes one footer's values, creating or moving its nodes as needed. */
+  function place(text: HostText, values: InjectorLabels) {
+    const record = placed.get(text)
+    if (!values.before && !values.after) {
+      if (record) releasePlaced(record)
+      return
+    }
+
+    const span = throughputSpan(text)
+    if (!span) {
+      // The host rebuilt the line without throughput; nothing to hang on to.
+      if (record) {
+        releasePlaced(record)
+        placed.delete(text)
+      }
+      return
+    }
+
+    let target = record
+    if (!target) {
+      target = { values }
+      placed.set(text, target)
+    }
+    target.values = values
+
+    if (!placeBefore(text, span, target) || !placeAfter(text, span, target)) {
+      releasePlaced(target)
+      placed.delete(text)
+    }
+  }
+
+  /** Whether anything still needs the repair timer. */
+  function pending(): boolean {
+    if (labels.before || labels.after) return true
+    for (const record of placed.values()) {
+      if (record.beforeNode || record.afterNode) return true
+    }
+    return false
+  }
+
   function repair() {
     try {
-      if (!labels.before && !labels.after) {
-        detach()
+      const texts = throughputTexts(context.renderer.root)
+
+      // Forget the footers the host dropped, so their nodes do not linger.
+      for (const [text, record] of placed) {
+        if (texts.includes(text)) continue
+        releasePlaced(record)
+        placed.delete(text)
+      }
+
+      const last = texts.at(-1)
+      if (!last) {
+        // No footer is mounted right now. Keep the timer alive while labels are
+        // pending, so the first line to appear still gets them.
+        if (!pending()) stop()
         return
       }
 
-      const target = lastThroughputText(context.renderer.root)
-      const span = target ? throughputSpan(target) : undefined
-      if (!target || !span) {
-        detach()
-        return
+      if (active && texts.includes(active)) {
+        // A newer footer only takes the figures when its turn has finished and
+        // the host rendered the matching line. Without a key, the newest line
+        // is the best guess, which is how the injector behaves in isolation.
+        const retarget =
+          key === undefined
+            ? last !== active && !placed.has(last)
+            : activeKey !== key && last !== active && !placed.has(last)
+        if (retarget) {
+          active = last
+          activeKey = key
+        }
+      } else {
+        // The line we were refreshing left the tree, or there never was one.
+        active = undefined
+        activeKey = undefined
+        if (!placed.has(last)) {
+          active = last
+          activeKey = key
+        }
       }
 
-      if (!placeBefore(target, span) || !placeAfter(target, span)) detach()
+      for (const text of texts) {
+        const record = placed.get(text)
+        if (text === active && activeKey === key) {
+          place(text, labels)
+        } else if (record) {
+          // Every other line keeps the values it was written with.
+          place(text, record.values)
+        }
+      }
+
+      if (!pending()) stop()
     } catch {
-      detach()
+      detachAll()
     }
   }
 
@@ -266,21 +383,30 @@ export function createTokenInjector(context: Context): TokenInjector {
   }
 
   return {
-    setLabels(next) {
+    setLabels(next, nextKey) {
       labels = { before: next.before, after: next.after }
+      key = nextKey
       // The timer exists only while there is something to splice, so a disabled
       // tweak runs no work at all.
-      if (!labels.before && !labels.after) {
+      if (!labels.before && !labels.after && !pending()) {
         stop()
-        detach()
+        detachAll()
         return
       }
       start()
       repair()
     },
-    dispose() {
+    clear() {
+      labels = {}
+      key = undefined
+      detachAll()
       stop()
-      detach()
+    },
+    dispose() {
+      labels = {}
+      key = undefined
+      detachAll()
+      stop()
     },
   }
 }

@@ -8,10 +8,15 @@ export interface MessageTokens {
 
 /** Only what the sum needs, so any session message list fits. */
 export interface TokenMessage {
+  readonly id?: string
   readonly type: string
   readonly tokens?: MessageTokens
   readonly cost?: number
   readonly model?: { readonly providerID: string; readonly id: string }
+  /** How the step ended; the host only draws a footer for a finished one. */
+  readonly finish?: string | null
+  readonly error?: unknown
+  readonly retry?: unknown
 }
 
 /**
@@ -69,16 +74,32 @@ function turnEnd(messages: readonly TokenMessage[], start: number): number {
 }
 
 /**
- * The messages of the newest turn that has a reply. The host draws its `tok/s`
- * line under that reply, so this is the turn the inline numbers describe: right
- * after a prompt is sent the current turn is still empty, and the newest line
- * still on screen is the previous turn's.
+ * The newest message the host draws a footer under. A footer belongs to the
+ * last step of a turn: one that stopped for any reason other than another tool
+ * call, or one that failed or is being retried.
+ */
+export function footerMessage(messages: readonly TokenMessage[]): TokenMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (message?.type !== "assistant") continue
+    if (message.error || message.retry) return message
+    if (message.finish && message.finish !== "tool-calls" && message.finish !== "unknown") {
+      return message
+    }
+  }
+  return undefined
+}
+
+/**
+ * The messages of the turn whose footer is on screen. A prompt with no finished
+ * reply yet leaves the previous turn's line there, so that line keeps showing
+ * the previous turn's numbers instead of the running one's.
  */
 export function replyTurnMessages(messages: readonly TokenMessage[]): readonly TokenMessage[] {
-  let last = messages.length - 1
-  while (last >= 0 && messages[last]?.type !== "assistant") last--
-  if (last < 0) return []
+  const footer = footerMessage(messages)
+  if (!footer) return []
 
+  const last = messages.lastIndexOf(footer)
   const start = turnStart(messages, last + 1)
   return messages.slice(start, turnEnd(messages, start))
 }
