@@ -493,26 +493,27 @@ describe("createTokenInjector and the footer figures", () => {
     injector.dispose()
   })
 
-  it("puts the figures after the shell indicator when one runs", () => {
+  it("puts the figures before the context while a shell stays on the left", () => {
     const shell = usageSurface("1 shell")
-    const usage = usageSurface()
+    const usage = usageSurface(" · 114.9K (29%)")
     const injector = createTokenInjector({
       renderer: { root: { getChildren: () => [shell, usage] } },
     } as unknown as Context)
 
     injector.setFooterFigures("649.3K tok total · $0.91")
-    expect(shell.plainText).toBe("1 shell · 649.3K tok total · $0.91")
-    expect(usage.plainText).toBe("114.9K (29%)")
+    expect(shell.plainText).toBe("1 shell")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%)")
     injector.dispose()
   })
 
-  it("moves the figures back before the context when the shell stops", () => {
+  it("keeps the figures in front of the context when the shell stops", () => {
     const shell = usageSurface("1 shell")
-    const usage = usageSurface()
+    const usage = usageSurface(" · 114.9K (29%)")
     const root = { getChildren: (): unknown[] => [shell, usage] }
     const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
 
     injector.setFooterFigures("649.3K tok total · $0.91")
+    usage.children = ["114.9K (29%)"]
     root.getChildren = () => [usage]
     injector.setFooterFigures("649.3K tok total · $0.91")
 
@@ -521,7 +522,7 @@ describe("createTokenInjector and the footer figures", () => {
     injector.dispose()
   })
 
-  it("handles the spans the host nests inside the footer texts", () => {
+  it("handles the spans the host nests inside the usage text", () => {
     const shell = usageSurface("⌘ 1 shell")
     const usage = new UsageText()
     const empty = new UsageText()
@@ -533,13 +534,8 @@ describe("createTokenInjector and the footer figures", () => {
     } as unknown as Context)
 
     injector.setFooterFigures("649.3K tok total · $0.91")
-    expect(shell.plainText).toBe("⌘ 1 shell · 649.3K tok total · $0.91")
-
-    const root = { getChildren: (): unknown[] => [usage] }
-    const second = createTokenInjector({ renderer: { root } } as unknown as Context)
-    second.setFooterFigures("649.3K tok total · $0.91")
+    expect(shell.plainText).toBe("⌘ 1 shell")
     expect(usage.plainText).toBe("649.3K tok total · $0.91 · 219.6K (56%)")
-    second.dispose()
     injector.dispose()
   })
 })
