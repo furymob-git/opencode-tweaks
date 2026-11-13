@@ -238,8 +238,8 @@ export function TokenStatus(props: {
   })
 
   // The host prints its own shell and subagent indicator before the context
-  // usage. Knowing whether one is on screen lets the total keep its separator
-  // only when something follows it.
+  // usage, so the figures normally ride on that text. The slot is only a
+  // fallback for a footer with neither of them.
   const children = createMemo(() => {
     const sessionID = props.input.sessionID
     if (!sessionID) return false
@@ -262,25 +262,32 @@ export function TokenStatus(props: {
     }
   })
 
-  const label = () => {
+  const figures = () => {
+    const parts: string[] = []
     const tokens = counts.totalCount()
-    if (!tokens) return undefined
-    return props.input.showDetails || children() ? `${tokens} tok total ·` : `${tokens} tok total`
+    if (tokens) parts.push(`${tokens} tok total`)
+    const cost = counts.totalCostLabel()
+    if (cost) parts.push(cost)
+    return parts.length > 0 ? parts.join(" · ") : undefined
   }
 
   createEffect(() => {
-    // Read the host's detail state so the cost follows the usage line when the
-    // host shows or hides it.
+    // Read the host's detail state so the figures follow the usage line when
+    // the host shows or hides it.
     props.input.showDetails
     children()
-    const cost = counts.totalCostLabel()
-    props.injector.setFooterCost(cost ? ` · ${cost}` : undefined)
+    props.injector.setFooterFigures(figures())
   })
 
+  // The injector owns the real line: it puts the figures after the shell
+  // indicator and before the context usage. This slot only covers the case
+  // where the host draws neither.
+  const fallback = () => (props.input.showDetails || children() ? undefined : figures())
+
   return (
-    <Show when={label()}>
-      <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0} marginRight={-1}>
-        {label()}
+    <Show when={fallback()}>
+      <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
+        {fallback()}
       </text>
     </Show>
   )
