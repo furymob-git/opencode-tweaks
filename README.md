@@ -105,10 +105,13 @@ rows collapsing underneath.
 
 Tokens shows two token counts and, optionally, their cost. Each has its own toggle.
 
-`Turn tokens` adds what the current turn has spent so far to its `tok/s` line: `12.3K tok · 62.2 tok/s`. OpenCode
-draws that line itself and publishes no slot inside it, so the tweak splices the value into the line's text node and
-repairs the splice while a turn runs. That placement is best effort and may lag or break when OpenCode changes the
-line. When the splice is not available the count stays out of the line rather than moving elsewhere.
+`Turn tokens` adds what the newest turn spent to its `tok/s` line: `12.3K tok · 62.2 tok/s`. OpenCode draws that line
+itself and publishes no slot inside it, so the tweak splices the value into the line's text node and repairs the splice
+while a turn runs. That placement is best effort and may lag or break when OpenCode changes the line. When the splice is
+not available the count stays out of the line rather than moving elsewhere.
+
+The line belongs to the reply above it, so the figures follow the newest reply rather than the prompt being typed. A
+prompt that has not answered yet therefore keeps the previous turn's numbers on screen instead of blanking the line.
 
 `Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
 
