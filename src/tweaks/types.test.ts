@@ -151,8 +151,23 @@ describe("quotaTweak", () => {
       "barWidth",
       "percent",
       "showReset",
+      "providerAlign",
+      "providerTab",
       "onlyCurrentModel",
     ])
+  })
+
+  it("aligns the provider name from the settings menu", () => {
+    const align = quotaTweak.settings.find((setting) => setting.id === "providerAlign")
+    expect(align?.kind).toBe("select")
+    expect(align?.default).toBe("left")
+    expect(align?.values).toEqual(["left", "center", "right"])
+  })
+
+  it("keeps the provider tab off by default", () => {
+    const tab = quotaTweak.settings.find((setting) => setting.id === "providerTab")
+    expect(tab?.kind).toBe("boolean")
+    expect(tab?.default).toBe(false)
   })
 
   it("stays off until the user enables it", () => {

@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { openTweaksMenu } from "./tweaks/menu"
+import { QuotaPanel } from "./tweaks/quota-panel"
 import { createSettingsStore } from "./tweaks/settings"
 
 export default Plugin.define({
@@ -7,6 +8,11 @@ export default Plugin.define({
   setup(context) {
     const store = createSettingsStore(context)
     let menuOpen = false
+
+    context.ui.slot({
+      append: "sidebar.content",
+      render: () => <QuotaPanel context={context} store={store} />,
+    })
 
     context.keymap.layer(() => ({
       mode: "global",
