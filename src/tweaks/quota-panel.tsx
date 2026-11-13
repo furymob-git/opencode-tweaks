@@ -260,9 +260,17 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
       (width, window) => Math.max(width, formatPercent(shownPercent(window), decimals()).length),
       0,
     )
-    // The daily bar shows a share of its own allowance, so it can read 100%
-    // even when every quota percentage is shorter.
-    const daily = dailyBudget() && windows().length > 0 ? formatPercent(100, decimals()).length : 0
+    // The daily bar has its own scale, so it is measured on its own rows. It is
+    // not reserved at 100%: that would pad every percent by a spare column for
+    // the whole day.
+    const daily = dailyBudget()
+      ? snapshots().reduce((width, snapshot) => {
+          const budget = budgetOf(snapshot)
+          if (!budget || budget.rest) return width
+          const shown = mode() === "used" ? 100 - budget.progress.ratio : budget.progress.ratio
+          return Math.max(width, formatPercent(shown, decimals()).length)
+        }, 0)
+      : 0
 
     return Math.max(MIN_PERCENT_WIDTH, widest, daily)
   })
