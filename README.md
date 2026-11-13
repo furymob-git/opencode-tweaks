@@ -82,9 +82,10 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 ## Tweaks
 
-| Tweak   | What it does                                           | Default |
-| ------- | ------------------------------------------------------ | ------- |
-| `quota` | Provider quota and reset times in the session sidebar. | Off     |
+| Tweak    | What it does                                                        | Default |
+| -------- | ------------------------------------------------------------------- | ------- |
+| `quota`  | Provider quota and reset times in the session sidebar.              | Off     |
+| `tokens` | Token and cost usage per prompt, plus session totals at the bottom. | Off     |
 
 ### Quota
 
@@ -99,6 +100,33 @@ after the percent and reset columns. A fixed width is available from `/tweaks`.
 The provider name sits on its own line by default and can be aligned left, center, or right. Enabling
 `One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
 rows collapsing underneath.
+
+### Tokens
+
+Tokens shows two token counts and, optionally, their cost. Each has its own toggle.
+
+`Tokens per prompt` adds what the current prompt has spent so far to the `tok/s` line of the newest turn:
+`12.3K tok · 62.2 tok/s`. OpenCode draws that line itself and publishes no slot inside it, so the tweak splices the
+value into the line's text node and repairs the splice while a turn runs. That placement is best effort and may lag or
+break when OpenCode changes the line. When the splice is not available the count stays out of the line rather than
+moving elsewhere.
+
+`Cost per prompt` adds that prompt's cost after the throughput figure: `62.2 tok/s · $0.0042`.
+
+`Session total` adds the session's total usage to the bottom status line, next to the context percentage:
+`790.6K tok total`. It reads the counters the session itself keeps, so the number stays exact even when the transcript
+has only loaded its latest messages. `Session cost` follows it on the same line: `790.6K tok total · $0.31`.
+
+`Count` picks what the two numbers add up. `New tokens` is the default: prompt, completion, reasoning, and cache
+writes, without cache reads, because a turn re-reads the whole context at every step and those reads would dwarf
+everything else. `Generated only` keeps just what the model wrote, and `Everything` matches the counters `/stats`
+reports, cache reads included. `Include subagents` is on by default, so the session total covers the whole session tree
+instead of only the session on screen; the per-prompt count always stays on the session on screen, because a prompt
+belongs to it. `Format` switches between compact counts such as `12.4K` and every digit such as `12,431`.
+
+Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost digits` controls the decimals:
+`Auto` keeps two decimals and grows until the first significant digit shows (`$0.004`), while a fixed choice always
+keeps that many (`$0.0042`).
 
 ## Development
 
@@ -130,6 +158,10 @@ src/
     menu-model.ts   filtering and selection helpers
     quota.ts        quota tweak definition
     quota-panel.tsx sidebar quota panel
+    tokens.ts       tokens tweak definition
+    token-slots.tsx inline splice driver and status line
+    token-inject.ts splice into the host's tok/s line
+    tokens-model.ts token sum and formatting
 ```
 
 ## Contributing

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { filterRows, groupRows, type MenuRow, moveRow } from "./menu-model"
+import { filterRows, groupRows, type MenuRow, moveRow, orderedRows } from "./menu-model"
 
 const rows: MenuRow[] = [
   { id: "quota", title: "Quota", category: "Quota" },
@@ -23,6 +23,36 @@ describe("groupRows", () => {
   it("groups in definition order", () => {
     expect(groupRows(rows).map(([category]) => category)).toEqual(["Quota", "General", "Display"])
     expect(groupRows(rows).find(([category]) => category === "Display")?.[1]).toHaveLength(2)
+  })
+})
+
+describe("orderedRows", () => {
+  it("flattens categories in the order they are drawn", () => {
+    // A row defined after another category still draws inside its own group.
+    const outOfOrder: MenuRow[] = [
+      ...rows,
+      { id: "format", title: "Format", category: "Display" },
+      { id: "count", title: "Count", category: "Scope" },
+    ]
+
+    expect(orderedRows(outOfOrder).map((row) => row.id)).toEqual([
+      "quota",
+      "enabled",
+      "bar",
+      "reset",
+      "format",
+      "count",
+    ])
+  })
+
+  it("keeps navigation next to what the screen shows", () => {
+    const drawn = orderedRows([
+      { id: "a", title: "A", category: "One" },
+      { id: "b", title: "B", category: "Two" },
+      { id: "c", title: "C", category: "One" },
+    ])
+
+    expect(moveRow(drawn, "c", 1)?.id).toBe("b")
   })
 })
 
