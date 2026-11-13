@@ -33,10 +33,11 @@ describe("formatReset", () => {
     expect(formatReset(resetIn(59), now)).toBe("59m")
   })
 
-  it("uses one decimal day from a day", () => {
-    expect(formatReset(resetIn(1440), now)).toBe("1.0d")
-    expect(formatReset(resetIn(3 * 1440), now)).toBe("3.0d")
-    expect(formatReset(resetIn(29.6 * 1440), now)).toBe("29.6d")
+  it("rounds days down to whole days", () => {
+    expect(formatReset(resetIn(1440), now)).toBe("1d")
+    expect(formatReset(resetIn(3 * 1440), now)).toBe("3d")
+    expect(formatReset(resetIn(3 * 1440 - 1), now)).toBe("2d")
+    expect(formatReset(resetIn(29.6 * 1440), now)).toBe("29d")
   })
 
   it("says now for a past reset", () => {
