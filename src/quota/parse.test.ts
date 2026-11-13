@@ -34,6 +34,16 @@ describe("consoleWindows", () => {
 
     expect(windows.map((window) => window.key)).toEqual(["30d"])
   })
+
+  it("keeps the unrounded share for pacing", () => {
+    const windows = consoleWindows(
+      { month: { limitMicroCents: 1000, usedMicroCents: 37, resetsAt: reset } },
+      undefined,
+    )
+
+    expect(windows[0]?.percentRemaining).toBe(96)
+    expect(windows[0]?.percentRemainingExact).toBeCloseTo(96.3)
+  })
 })
 
 describe("keyWindows", () => {

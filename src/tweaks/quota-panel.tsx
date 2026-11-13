@@ -7,6 +7,7 @@ import { barParts, errorText, formatPercent, formatReset, levelOf } from "../quo
 import {
   dayKey,
   endOfDay,
+  exactRemaining,
   isCurrent,
   isWorkday,
   longestWindow,
@@ -143,7 +144,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
       if (isCurrent(pace[key], day, window.resetsAt, signature)) continue
 
       const entry = startPace(
-        window.percentRemaining,
+        exactRemaining(window),
         day,
         window.resetsAt,
         signature,
@@ -168,7 +169,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     if (!entry) return undefined
 
     return {
-      progress: paceProgress(entry, window.percentRemaining),
+      progress: paceProgress(entry, exactRemaining(window)),
       rest: !isWorkday(now(), workdays()),
     }
   }

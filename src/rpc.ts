@@ -5,6 +5,13 @@ export type QuotaWindowKey = "5h" | "7d" | "30d"
 export interface QuotaWindowSnapshot {
   readonly key: QuotaWindowKey
   readonly percentRemaining: number
+  /**
+   * The same share without the rounding shown in the panel. Pacing reads it so
+   * the daily bar moves with real spending instead of jumping a whole percent
+   * at a time. Providers that only publish a whole percent return the same
+   * value as `percentRemaining`.
+   */
+  readonly percentRemainingExact?: number
   readonly resetsAt: string
 }
 
@@ -25,6 +32,7 @@ const windowSchema = {
   properties: {
     key: { type: "string", enum: ["5h", "7d", "30d"] },
     percentRemaining: { type: "number" },
+    percentRemainingExact: { type: "number" },
     resetsAt: { type: "string" },
   },
   required: ["key", "percentRemaining", "resetsAt"],
