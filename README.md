@@ -101,6 +101,11 @@ The provider name sits on its own line by default and can be aligned left, cente
 `One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
 rows collapsing underneath.
 
+`Current provider only` is on by default. The panel then follows the model in use: it appears for a provider whose
+quota this plugin can read, and stays hidden for one that publishes none. OpenCode Go is the only source today, so
+selecting a plain `opencode` model hides the panel. Turn the setting off to keep the OpenCode Go quota visible whatever
+model is selected.
+
 ### Tokens
 
 Tokens shows two token counts and, optionally, their cost. Each has its own toggle.

@@ -65,7 +65,7 @@ export const quotaTweak = defineTweak({
     {
       id: "onlyCurrentModel",
       title: "Current provider only",
-      description: "Hide providers that do not serve the selected model.",
+      description: "Hide the panel when the selected model's provider has no quota to show.",
       category: "Provider",
       kind: "boolean",
       default: true,

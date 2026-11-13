@@ -32,6 +32,14 @@ const PERCENT = setting("percent")
 const SHOW_RESET = setting("showReset")
 const PROVIDER_ALIGN = setting("providerAlign")
 const PROVIDER_TAB = setting("providerTab")
+const ONLY_CURRENT = setting("onlyCurrentModel")
+
+/**
+ * Providers whose quota this plugin can read. A provider missing here publishes
+ * no quota, so the panel hides when the selected model comes from it and the
+ * user asked for the current provider only.
+ */
+const QUOTA_PROVIDERS = new Set(["opencode-go"])
 
 const FEEDBACK = {
   good: "success",
@@ -41,9 +49,18 @@ const FEEDBACK = {
 
 export function QuotaPanel(props: { readonly context: Context; readonly store: SettingsStore }) {
   const enabled = () => props.store.read(quotaTweak, ENABLED).value === true
+  const onlyCurrent = () => props.store.read(quotaTweak, ONLY_CURRENT).value === true
+
+  // The panel belongs to the model in use: a provider without a quota source
+  // shows nothing rather than an empty box, unless the user wants every quota.
+  const serves = () => {
+    if (!onlyCurrent()) return true
+    const model = props.context.ui.model.current()
+    return !model || QUOTA_PROVIDERS.has(model.providerID)
+  }
 
   return (
-    <Show when={enabled()}>
+    <Show when={enabled() && serves()}>
       <QuotaBody context={props.context} store={props.store} />
     </Show>
   )
