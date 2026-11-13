@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { quotaTweak } from "./quota"
+import { tokensTweak } from "./tokens"
 import {
   choicesFor,
   defineTweak,
@@ -154,25 +155,54 @@ describe("quotaTweak", () => {
       "providerAlign",
       "providerTab",
       "onlyCurrentModel",
+      "dailyBudget",
+      "reserve",
+      "workMon",
+      "workTue",
+      "workWed",
+      "workThu",
+      "workFri",
+      "workSat",
+      "workSun",
+    ])
+  })
+
+  it("budgets on weekdays and keeps no reserve by default", () => {
+    const budget = quotaTweak.settings.find((setting) => setting.id === "dailyBudget")
+    const reserve = quotaTweak.settings.find((setting) => setting.id === "reserve")
+    expect(budget?.default).toBe(true)
+    expect(reserve?.default).toBe(0)
+
+    const workdays = quotaTweak.settings
+      .filter((setting) => setting.id.startsWith("work"))
+      .map((setting) => [setting.id, setting.default])
+    expect(workdays).toEqual([
+      ["workMon", true],
+      ["workTue", true],
+      ["workWed", true],
+      ["workThu", true],
+      ["workFri", true],
+      ["workSat", true],
+      ["workSun", true],
     ])
   })
 
   it("aligns the provider name from the settings menu", () => {
     const align = quotaTweak.settings.find((setting) => setting.id === "providerAlign")
     expect(align?.kind).toBe("select")
-    expect(align?.default).toBe("left")
+    expect(align?.default).toBe("right")
     expect(align?.values).toEqual(["left", "center", "right"])
   })
 
-  it("keeps the provider tab off by default", () => {
+  it("keeps the provider name on the Quota line by default", () => {
     const tab = quotaTweak.settings.find((setting) => setting.id === "providerTab")
     expect(tab?.kind).toBe("boolean")
-    expect(tab?.default).toBe(false)
+    expect(tab?.default).toBe(true)
   })
 
-  it("stays off until the user enables it", () => {
+  it("shows the panel by default", () => {
     const enabled = quotaTweak.settings.find((setting) => setting.id === "enabled")
-    expect(enabled?.default).toBe(false)
+    expect(enabled?.default).toBe(true)
   })
 
   it("lets the quota bar use the available width", () => {
@@ -180,5 +210,27 @@ describe("quotaTweak", () => {
     expect(width?.kind).toBe("select")
     expect(width?.values).toContain("auto")
     expect(width?.default).toBe("auto")
+  })
+})
+
+describe("tokensTweak", () => {
+  it("turns every count on by default", () => {
+    const defaults = Object.fromEntries(
+      tokensTweak.settings.map((setting) => [setting.id, setting.default]),
+    )
+
+    expect(defaults).toEqual({
+      enabled: true,
+      prompt: true,
+      promptCost: true,
+      total: true,
+      totalCost: true,
+      format: "compact",
+      costDigits: "auto",
+      ttft: false,
+      count: "generated",
+      subagents: true,
+      estimateCost: true,
+    })
   })
 })
