@@ -82,10 +82,10 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 ## Tweaks
 
-| Tweak    | What it does                                                        | Default |
-| -------- | ------------------------------------------------------------------- | ------- |
-| `quota`  | Provider quota and reset times in the session sidebar.              | Off     |
-| `tokens` | Token and cost usage per prompt, plus session totals at the bottom. | Off     |
+| Tweak    | What it does                                                      | Default |
+| -------- | ----------------------------------------------------------------- | ------- |
+| `quota`  | Provider quota and reset times in the session sidebar.            | Off     |
+| `tokens` | Token and cost usage per turn, plus session totals at the bottom. | Off     |
 
 ### Quota
 
@@ -105,28 +105,33 @@ rows collapsing underneath.
 
 Tokens shows two token counts and, optionally, their cost. Each has its own toggle.
 
-`Tokens per prompt` adds what the current prompt has spent so far to the `tok/s` line of the newest turn:
-`12.3K tok · 62.2 tok/s`. OpenCode draws that line itself and publishes no slot inside it, so the tweak splices the
-value into the line's text node and repairs the splice while a turn runs. That placement is best effort and may lag or
-break when OpenCode changes the line. When the splice is not available the count stays out of the line rather than
-moving elsewhere.
+`Turn tokens` adds what the current turn has spent so far to its `tok/s` line: `12.3K tok · 62.2 tok/s`. OpenCode
+draws that line itself and publishes no slot inside it, so the tweak splices the value into the line's text node and
+repairs the splice while a turn runs. That placement is best effort and may lag or break when OpenCode changes the
+line. When the splice is not available the count stays out of the line rather than moving elsewhere.
 
-`Cost per prompt` adds that prompt's cost after the throughput figure: `62.2 tok/s · $0.0042`.
+`Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
 
-`Session total` adds the session's total usage to the bottom status line, next to the context percentage:
+`Session tokens` adds the session's total usage to the bottom status line, next to the context percentage:
 `790.6K tok total`. It reads the counters the session itself keeps, so the number stays exact even when the transcript
 has only loaded its latest messages. `Session cost` follows it on the same line: `790.6K tok total · $0.31`.
 
-`Count` picks what the two numbers add up. `New tokens` is the default: prompt, completion, reasoning, and cache
+`Token count` picks what the two numbers add up. `New tokens` is the default: prompt, completion, reasoning, and cache
 writes, without cache reads, because a turn re-reads the whole context at every step and those reads would dwarf
 everything else. `Generated only` keeps just what the model wrote, and `Everything` matches the counters `/stats`
-reports, cache reads included. `Include subagents` is on by default, so the session total covers the whole session tree
-instead of only the session on screen; the per-prompt count always stays on the session on screen, because a prompt
-belongs to it. `Format` switches between compact counts such as `12.4K` and every digit such as `12,431`.
+reports, cache reads included. `Include subagents` is on by default, so the session totals cover the whole session tree
+instead of only the session on screen; the per-turn count always stays on the session on screen, because a prompt
+belongs to it. `Token format` switches between compact counts such as `12.4K` and every digit such as `12,431`.
 
-Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost digits` controls the decimals:
+Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost decimals` controls the decimals:
 `Auto` keeps two decimals and grows until the first significant digit shows (`$0.004`), while a fixed choice always
 keeps that many (`$0.0042`).
+
+`Estimate cost` fills in a price the provider did not report, using the model's list price from the same catalog
+OpenCode already synced: prompt, completion, reasoning billed as output, and cache traffic, each at its own rate. A
+provider that reports a price always wins, and a session that changed model is estimated with the model it ended on, so
+treat the figure as an estimate. This is what makes the OpenCode Go monthly credit readable: the plan reports `$0.00`
+per turn, and the estimate follows the API rates instead. Costs use the raw counters whatever `Token count` says.
 
 ## Development
 

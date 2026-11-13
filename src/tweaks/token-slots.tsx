@@ -5,10 +5,14 @@ import type { TokenInjector } from "./token-inject"
 import { tokensTweak } from "./tokens"
 import {
   type CostDigits,
+  estimateCost,
   formatCost,
   formatTokens,
   isCostDigits,
+  type ModelPrice,
+  priceFor,
   type TokenCount,
+  type TokenMessage,
   turnCost,
   turnTokens,
   usageTokens,
@@ -29,6 +33,7 @@ const COUNT = setting("count")
 const PROMPT_COST = setting("promptCost")
 const TOTAL_COST = setting("totalCost")
 const COST_DIGITS = setting("costDigits")
+const ESTIMATE = setting("estimateCost")
 const FORMAT = setting("format")
 
 /**
@@ -47,6 +52,7 @@ function useCounts(props: {
   const subagents = () => props.store.read(tokensTweak, SUBAGENTS).value === true
   const promptCost = () => props.store.read(tokensTweak, PROMPT_COST).value === true
   const totalCost = () => props.store.read(tokensTweak, TOTAL_COST).value === true
+  const estimate = () => props.store.read(tokensTweak, ESTIMATE).value === true
   const costDigits = (): CostDigits => {
     const value = props.store.read(tokensTweak, COST_DIGITS).value
     return isCostDigits(value) ? value : "auto"
@@ -61,6 +67,26 @@ function useCounts(props: {
   const messages = (sessionID: string) => props.context.data.session.message.list(sessionID) ?? []
 
   const sessions = props.context.data.session
+
+  // List prices come from the model catalog the TUI already synced, so an
+  // estimate costs nothing but a lookup.
+  const prices = createMemo(() => {
+    const map = new Map<string, readonly ModelPrice[]>()
+    for (const model of props.context.data.location.model.list() ?? []) {
+      map.set(`${model.providerID}/${model.modelID}`, model.cost)
+    }
+    return map
+  })
+
+  /** The list price of a model at a context size, when the catalog knows it. */
+  function priceOf(
+    ref: { readonly providerID: string; readonly id: string } | undefined,
+    context: number,
+  ) {
+    if (!ref) return undefined
+    const list = prices().get(`${ref.providerID}/${ref.id}`)
+    return list ? priceFor(list, context) : undefined
+  }
 
   const family = createMemo(() => {
     const sessionID = props.sessionID()
@@ -92,12 +118,29 @@ function useCounts(props: {
   })
 
   const sessionCost = createMemo(() =>
-    family().reduce((sum, sessionID) => sum + (sessions.get(sessionID)?.cost ?? 0), 0),
+    family().reduce((sum, sessionID) => {
+      const session = sessions.get(sessionID)
+      const reported = session?.cost ?? 0
+      if (reported > 0 || !estimate() || !session?.tokens) return sum + reported
+
+      const price = priceOf(session.model, session.tokens.input + session.tokens.cache.read)
+      return sum + (price ? estimateCost(session.tokens, price) : 0)
+    }, 0),
   )
 
   const cost = createMemo(() => {
     const sessionID = props.sessionID()
-    return sessionID ? turnCost(messages(sessionID)) : 0
+    if (!sessionID) return 0
+
+    const lookup = estimate()
+      ? (message: TokenMessage) => {
+          const tokens = message.tokens
+          if (!tokens) return undefined
+          return priceOf(message.model, tokens.input + tokens.cache.read)
+        }
+      : undefined
+
+    return turnCost(messages(sessionID), lookup)
   })
 
   /** The formatted count, or `undefined` while there is nothing worth showing. */
