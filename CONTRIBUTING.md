@@ -5,7 +5,7 @@
 opencode-tweaks collects small, opt-in additions to OpenCode. A change belongs here when:
 
 - it can be built on the public `@opencode/plugin` API
-- it leaves OpenCode's defaults alone until the user enables it
+- it ships with a sensible default and a switch in `/tweaks`
 - it feels native in the terminal and does not fight the existing interface
 - OpenCode's own configuration cannot already do the same thing
 

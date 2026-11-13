@@ -4,6 +4,18 @@ import { type BoxRenderable, CliRenderEvents, TextAttributes } from "@opentui/co
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { barParts, errorText, formatPercent, formatReset, levelOf } from "../quota/format"
+import {
+  dayKey,
+  endOfDay,
+  isCurrent,
+  isWorkday,
+  longestWindow,
+  type PaceEntry,
+  type PaceProgress,
+  paceProgress,
+  paceSignature,
+  startPace,
+} from "../quota/pace"
 import { Quota, type QuotaSnapshot, type QuotaWindowSnapshot } from "../rpc"
 import { quotaTweak } from "./quota"
 import type { SettingsStore } from "./settings"
@@ -33,6 +45,21 @@ const SHOW_RESET = setting("showReset")
 const PROVIDER_ALIGN = setting("providerAlign")
 const PROVIDER_TAB = setting("providerTab")
 const ONLY_CURRENT = setting("onlyCurrentModel")
+const DAILY_BUDGET = setting("dailyBudget")
+const RESERVE = setting("reserve")
+/** Workday settings ordered like `Date#getDay`, with Sunday first. */
+const WORKDAYS = [
+  setting("workSun"),
+  setting("workMon"),
+  setting("workTue"),
+  setting("workWed"),
+  setting("workThu"),
+  setting("workFri"),
+  setting("workSat"),
+]
+
+/** The stored budget of one provider's pacing window. */
+const PACE_STORE = "opencode-tweaks.quota-pace"
 
 const FEEDBACK = {
   good: "success",
@@ -85,6 +112,66 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
   })
 
   const onlyCurrent = () => props.store.read(quotaTweak, ONLY_CURRENT).value === true
+
+  const dailyBudget = createMemo(() => props.store.read(quotaTweak, DAILY_BUDGET).value === true)
+  const reserve = createMemo(() => {
+    const value = props.store.read(quotaTweak, RESERVE).value
+    return typeof value === "number" ? value : 0
+  })
+  const workdays = createMemo(() =>
+    WORKDAYS.map((item) => props.store.read(quotaTweak, item).value === true),
+  )
+
+  // The day's allowance is frozen at the first reading of the day, so the bar
+  // only moves when quota is spent instead of shrinking on every refresh.
+  const [pace, updatePace] = props.context.storage.store<Record<string, PaceEntry>>(PACE_STORE, {
+    initial: {},
+  })
+
+  createEffect(() => {
+    const moment = now()
+    const mask = workdays()
+    const keep = reserve()
+    const signature = paceSignature(mask, keep)
+    const day = dayKey(moment)
+
+    for (const snapshot of snapshots()) {
+      const window = longestWindow(snapshot.windows)
+      if (!window) continue
+
+      const key = paceKey(snapshot.providerID, window.key)
+      if (isCurrent(pace[key], day, window.resetsAt, signature)) continue
+
+      const entry = startPace(
+        window.percentRemaining,
+        day,
+        window.resetsAt,
+        signature,
+        mask,
+        keep,
+        moment,
+      )
+      void updatePace((draft) => {
+        draft[key] = entry
+      })
+    }
+  })
+
+  /** What the daily bar shows for one provider, or nothing when it has none. */
+  function budgetOf(snapshot: QuotaSnapshot): DayBudget | undefined {
+    if (!dailyBudget()) return undefined
+
+    const window = longestWindow(snapshot.windows)
+    if (!window) return undefined
+
+    const entry = pace[paceKey(snapshot.providerID, window.key)]
+    if (!entry) return undefined
+
+    return {
+      progress: paceProgress(entry, window.percentRemaining),
+      rest: !isWorkday(now(), workdays()),
+    }
+  }
 
   /**
    * The provider whose quota the panel follows. `undefined` asks the server for
@@ -158,14 +245,20 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
   })
   const inlineProvider = createMemo(() => props.store.read(quotaTweak, PROVIDER_TAB).value === true)
   const windows = createMemo(() => snapshots().flatMap((snapshot) => snapshot.windows))
+  const shownPercent = (window: QuotaWindowSnapshot) => {
+    const remaining = Math.max(0, Math.min(100, window.percentRemaining))
+    return mode() === "used" ? 100 - remaining : remaining
+  }
   const percentWidth = createMemo(() => {
-    const widest = windows().reduce((width, window) => {
-      const remaining = Math.max(0, Math.min(100, window.percentRemaining))
-      const shown = mode() === "used" ? 100 - remaining : remaining
-      return Math.max(width, formatPercent(shown).length)
-    }, 0)
+    const widest = windows().reduce(
+      (width, window) => Math.max(width, formatPercent(shownPercent(window)).length),
+      0,
+    )
+    // The daily bar shows a share of its own allowance, so it can read 100%
+    // even when every quota percentage is shorter.
+    const daily = dailyBudget() && windows().length > 0 ? 4 : 0
 
-    return Math.max(MIN_PERCENT_WIDTH, widest)
+    return Math.max(MIN_PERCENT_WIDTH, widest, daily)
   })
 
   // Pad the reset column to its own content so the widest value keeps no leading gap.
@@ -208,6 +301,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
           <QuotaSection
             context={props.context}
             snapshot={snapshot}
+            budget={budgetOf(snapshot)}
             panelWidth={panelWidth()}
             width={width()}
             percentWidth={percentWidth()}
@@ -234,6 +328,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
 function QuotaSection(props: {
   readonly context: Context
   readonly snapshot: QuotaSnapshot
+  readonly budget?: DayBudget
   readonly panelWidth: number
   readonly width: number
   readonly percentWidth: number
@@ -289,6 +384,73 @@ function QuotaSection(props: {
             />
           )}
         </For>
+        <Show when={props.budget}>
+          {(budget: () => DayBudget) => (
+            <DayRow
+              progress={budget().progress}
+              rest={budget().rest}
+              width={props.width}
+              percentWidth={props.percentWidth}
+              showReset={props.showReset}
+              mode={props.mode}
+              now={props.now}
+            />
+          )}
+        </Show>
+      </Show>
+    </box>
+  )
+}
+
+/** The share of the longest window that today may spend. */
+interface DayBudget {
+  readonly progress: PaceProgress
+  readonly rest: boolean
+}
+
+function paceKey(providerID: string, windowKey: string): string {
+  return `${providerID}:${windowKey}`
+}
+
+function DayRow(props: {
+  readonly progress: PaceProgress
+  readonly rest: boolean
+  readonly width: number
+  readonly percentWidth: number
+  readonly showReset: boolean
+  readonly mode: "remaining" | "used"
+  readonly now: number
+}) {
+  const context = usePlugin()
+  const theme = () => context.theme
+  const shown = () => (props.mode === "used" ? 100 - props.progress.ratio : props.progress.ratio)
+  const used = () => 100 - props.progress.ratio
+  const color = () => {
+    if (used() >= 100) return theme().text.feedback.low.base
+    if (used() >= 90) return theme().text.feedback.warning.base
+    return theme().hue.accent[200]
+  }
+  const bar = createMemo(() => barParts(props.rest ? 0 : shown(), props.width))
+  const reset = createMemo(() =>
+    formatReset(new Date(endOfDay(props.now)).toISOString(), props.now),
+  )
+
+  return (
+    <box flexDirection="row" gap={1}>
+      <text flexShrink={0} fg={theme().text.base}>
+        {"day".padEnd(LABEL_WIDTH)}
+      </text>
+      <text flexShrink={0}>
+        <span style={{ fg: props.rest ? theme().text.muted : color() }}>{bar().filled}</span>
+        <span style={{ fg: theme().text.muted }}>{bar().empty}</span>
+      </text>
+      <text flexShrink={0} fg={props.rest ? theme().text.muted : color()}>
+        {(props.rest ? "–" : formatPercent(shown())).padStart(props.percentWidth)}
+      </text>
+      <Show when={props.showReset || props.rest}>
+        <text flexShrink={0} fg={theme().text.muted}>
+          {props.rest ? "rest" : reset()}
+        </text>
       </Show>
     </box>
   )
