@@ -2,16 +2,31 @@ import { Plugin } from "@opencode/plugin/tui"
 import { openTweaksMenu } from "./tweaks/menu"
 import { QuotaPanel } from "./tweaks/quota-panel"
 import { createSettingsStore } from "./tweaks/settings"
+import { createTokenInjector } from "./tweaks/token-inject"
+import { TokenInline, TokenStatus } from "./tweaks/token-slots"
 
 export default Plugin.define({
   id: "opencode-tweaks.tui",
   setup(context) {
     const store = createSettingsStore(context)
+    const tokens = createTokenInjector(context)
     let menuOpen = false
 
     context.ui.slot({
       append: "sidebar.content",
       render: () => <QuotaPanel context={context} store={store} />,
+    })
+
+    context.ui.slot({
+      append: "session.composer.top",
+      render: (input) => (
+        <TokenInline context={context} input={input} store={store} injector={tokens} />
+      ),
+    })
+
+    context.ui.slot({
+      after: "prompt.footer.status",
+      render: (input) => <TokenStatus context={context} input={input} store={store} />,
     })
 
     context.keymap.layer(() => ({
@@ -43,5 +58,7 @@ export default Plugin.define({
         },
       ],
     }))
+
+    return () => tokens.dispose()
   },
 })
