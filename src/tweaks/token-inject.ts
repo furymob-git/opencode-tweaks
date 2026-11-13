@@ -76,8 +76,19 @@ for (const timer of previousTimers ?? []) clearInterval(timer)
  */
 function isTextNode(value: unknown): value is HostNode {
   const node = value as Partial<HostNode> | null
-  if (!node || !Array.isArray(node.children)) return false
-  return typeof node.add === "function"
+  if (!node || typeof node.add !== "function") return false
+  if (Array.isArray(node.children)) return true
+  const text = node as { getTextChildren?: unknown }
+  return typeof text.getTextChildren === "function"
+}
+
+/** The children of a node, whichever way the host exposes them. */
+function childNodes(node: HostNode): (string | HostNode)[] {
+  const text = node as { getTextChildren?: () => readonly unknown[] }
+  if (typeof text.getTextChildren === "function") {
+    return text.getTextChildren() as (string | HostNode)[]
+  }
+  return Array.isArray(node.children) ? node.children : []
 }
 
 function asHostText(value: unknown): HostText | undefined {
@@ -94,7 +105,7 @@ function asHostText(value: unknown): HostText | undefined {
 function textOf(node: unknown): string {
   if (typeof node === "string") return node
   if (!isTextNode(node)) return ""
-  return node.children.map(textOf).join("")
+  return childNodes(node).map(textOf).join("")
 }
 
 /**
@@ -205,9 +216,10 @@ function textNodeConstructor(span: HostNode): HostNodeConstructor | undefined {
   while (pending.length > 0) {
     const node = pending.shift()
     if (!node) break
-    for (const child of node.children) {
+    for (const child of childNodes(node)) {
       if (typeof child === "string" || !isTextNode(child)) continue
-      if (child.children.some((item) => typeof item === "string")) {
+      const children = childNodes(child)
+      if (children.some((item) => typeof item === "string")) {
         return child.constructor as HostNodeConstructor
       }
       pending.push(child)
@@ -234,8 +246,9 @@ export interface TokenInjector {
   /**
    * The session figures to print on the prompt footer, such as
    * `649.3K tok total · $0.91`, without the surrounding separators.
+   * `onPlaced` reports whether the host line accepted them.
    */
-  setFooterFigures(label?: string): void
+  setFooterFigures(label?: string, onPlaced?: (placed: boolean) => void): void
   /** Drops every figure, including the ones frozen on earlier lines. */
   clear(): void
   dispose(): void
@@ -260,6 +273,8 @@ export function createTokenInjector(context: Context): TokenInjector {
   /** The session figures the prompt footer should carry. */
   let footerLabel: string | undefined
   let footerFigures: { text: HostText; node: HostNode; mode: "shell" | "usage" } | undefined
+  let footerListener: ((placed: boolean) => void) | undefined
+  let footerReported: boolean | undefined
   const placed = new Map<HostText, Placed>()
   /** The ttft spans taken out of a line, with what followed them. */
   const hidden = new Map<HostText, { node: HostNode; anchor: unknown }>()
@@ -294,9 +309,20 @@ export function createTokenInjector(context: Context): TokenInjector {
     releaseFooter()
   }
 
+  function reportFooter(placed: boolean) {
+    if (footerReported === placed) return
+    footerReported = placed
+    try {
+      footerListener?.(placed)
+    } catch {
+      // A component that unmounted mid-repair must not break the timer.
+    }
+  }
+
   function releaseFooter() {
     release(footerFigures?.node)
     footerFigures = undefined
+    reportFooter(false)
   }
 
   function makeNode(span: HostNode, value: string, id: string): HostNode | undefined {
@@ -485,17 +511,22 @@ export function createTokenInjector(context: Context): TokenInjector {
 
     if (footerFigures && footerFigures.text !== target) releaseFooter()
 
-    if (footerFigures) {
-      setText(footerFigures.node, value)
-      footerFigures.mode = mode
-    } else {
-      const node = makeFooterNode(target, usage ?? target, value)
-      if (!node) return
-      footerFigures = { text: target, node, mode }
-    }
+    try {
+      if (footerFigures) {
+        setText(footerFigures.node, value)
+        footerFigures.mode = mode
+      } else {
+        const node = makeFooterNode(target, usage ?? target, value)
+        if (!node) return
+        footerFigures = { text: target, node, mode }
+      }
 
-    if (mode === "shell") placeLast(target, footerFigures.node)
-    else placeFirst(target, footerFigures.node)
+      if (mode === "shell") placeLast(target, footerFigures.node)
+      else placeFirst(target, footerFigures.node)
+      reportFooter(true)
+    } catch {
+      releaseFooter()
+    }
   }
 
   /** Writes one footer's values, creating or moving its nodes as needed. */
@@ -691,10 +722,13 @@ export function createTokenInjector(context: Context): TokenInjector {
       start()
       repair()
     },
-    setFooterFigures(label) {
+    setFooterFigures(label, onPlaced) {
       footerLabel = label
+      footerListener = onPlaced
+      footerReported = undefined
       if (!pending()) {
         releaseFooter()
+        reportFooter(false)
         stop()
         return
       }
@@ -707,6 +741,7 @@ export function createTokenInjector(context: Context): TokenInjector {
       footerLabel = undefined
       restoreAll()
       detachAll()
+      footerListener = undefined
       stop()
     },
     dispose() {
@@ -715,6 +750,7 @@ export function createTokenInjector(context: Context): TokenInjector {
       footerLabel = undefined
       restoreAll()
       detachAll()
+      footerListener = undefined
       stop()
     },
   }
