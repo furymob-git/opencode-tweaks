@@ -1,5 +1,5 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
-import { createEffect, createMemo, createSignal, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
 import type { SettingsStore } from "./settings"
 import type { TokenInjector } from "./token-inject"
 import { tokensTweak } from "./tokens"
@@ -279,12 +279,31 @@ export function TokenStatus(props: {
     props.input.showDetails
     children()
     props.injector.setFooterFigures(figures(), setPlaced)
+
+    // The host draws the shell indicator one render after the state changes.
+    // A short second pass catches it without waiting for the repair interval.
+    const timer = setTimeout(() => {
+      props.injector.setFooterFigures(figures(), setPlaced)
+    }, 60)
+    onCleanup(() => clearTimeout(timer))
+  })
+
+  const [stale, setStale] = createSignal(false)
+
+  createEffect(() => {
+    if (placed()) {
+      setStale(false)
+      return
+    }
+    const timer = setTimeout(() => setStale(true), 500)
+    onCleanup(() => clearTimeout(timer))
   })
 
   // The injector owns the real line: it puts the figures after the shell
-  // indicator and before the context usage. The slot is a safety net for a
-  // footer that rejected the splice, so the figures never disappear.
-  const fallback = () => (placed() ? undefined : figures())
+  // indicator and before the context usage. The slot is only a last resort
+  // after the splice has stayed unavailable, so nothing flashes to the wrong
+  // side of a shell while the host is still drawing it.
+  const fallback = () => (placed() || !stale() ? undefined : figures())
 
   return (
     <Show when={fallback()}>

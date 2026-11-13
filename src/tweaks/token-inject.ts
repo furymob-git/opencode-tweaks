@@ -45,13 +45,11 @@ type HostNodeConstructor = new (options: {
 const THROUGHPUT = / \d[\d.]* tok\/s/
 /**
  * The context usage the host prints on the prompt footer, such as `114.9K
- * (29%)`. A goal adds a leading separator, the host may append its own reported
- * cost, and the tweak puts its figures in front, so the text is matched before
- * the tweak's own node is taken into account.
+ * (29%)`. A shell or goal adds a leading separator, the host may append its own
+ * reported cost, and the tweak puts its figures in front, so the text is matched
+ * before the tweak's own node is taken into account.
  */
 const FOOTER_USAGE = /^(?: · )?\d[\d.,]*\s?[KMG]?\s?\(\d+%\)(?:\s·\s\$[\d.,]+){0,2}$/
-/** The host's shell and subagent indicator, such as `1 shell` or `2 subagents · 1 shell`. */
-const FOOTER_CHILD = /\d+ (?:subagents?|shells?)(?: · \d+ shells?)?$/
 /** The line is rebuilt on every token, so a slow repair would lag behind it. */
 const REPAIR_MS = 400
 const BEFORE_ID = "opencode-tweaks.tokens.before"
@@ -180,10 +178,6 @@ function isFooterUsage(text: string): boolean {
   return FOOTER_USAGE.test(text)
 }
 
-function isFooterChild(text: string): boolean {
-  return text.length <= 40 && FOOTER_CHILD.test(text)
-}
-
 /**
  * The prompt footer's context usage text. It is the only text that carries the
  * `used (percent)` shape the host prints next to the shell and goal indicators;
@@ -272,7 +266,7 @@ export function createTokenInjector(context: Context): TokenInjector {
   let ttft = true
   /** The session figures the prompt footer should carry. */
   let footerLabel: string | undefined
-  let footerFigures: { text: HostText; node: HostNode; mode: "shell" | "usage" } | undefined
+  let footerFigures: { text: HostText; node: HostNode } | undefined
   let footerListener: ((placed: boolean) => void) | undefined
   let footerReported: boolean | undefined
   const placed = new Map<HostText, Placed>()
@@ -435,23 +429,15 @@ export function createTokenInjector(context: Context): TokenInjector {
     else target.add?.(node)
   }
 
-  /** Keeps a node last among a text's children. */
-  function placeLast(target: HostText, node: HostNode) {
-    const children = target.getTextChildren()
-    if (children.at(-1) === node) return
-    if (children.includes(node)) target.remove(node)
-    target.add?.(node)
-  }
-
   /**
-   * Keeps the session figures on the prompt footer. The host draws the shell
-   * indicator and the context usage itself, so the figures ride on the shell
-   * when one is running and otherwise open the context text:
+   * Keeps the session figures in front of the prompt footer's context usage.
+   * The host draws the shell indicator as a separate text just before it, so
+   * prefixing the usage gives the requested order without touching the shell:
    *
    *   `1 shell · 649.3K tok total · $0.91 · 219.6K (56%)`
    *
-   * The host rebuilds these texts while a turn runs, so the repair pass puts the
-   * node back when it disappears.
+   * The host rebuilds the usage text while a turn runs, so the repair pass puts
+   * the node back when it disappears.
    */
   function placeFooterFigures(label: string | undefined) {
     if (!label) {
@@ -472,15 +458,6 @@ export function createTokenInjector(context: Context): TokenInjector {
     const previousBase =
       previous && texts.includes(previous) ? withoutInjected(previous, previousNode) : undefined
 
-    let child: HostText | undefined
-    if (previousBase !== undefined && isFooterChild(previousBase)) {
-      child = previous
-    } else {
-      for (const text of texts) {
-        if (isFooterChild(text.plainText)) child = text
-      }
-    }
-
     let usage: HostText | undefined
     if (previousBase !== undefined && isFooterUsage(previousBase)) {
       usage = previous
@@ -490,39 +467,32 @@ export function createTokenInjector(context: Context): TokenInjector {
       }
     }
 
-    const target = child ?? usage
-    if (!target) {
+    if (!usage) {
       releaseFooter()
       return
     }
 
-    const mode: "shell" | "usage" = child ? "shell" : "usage"
     let opening = ""
-    if (mode === "usage") {
-      try {
-        const first = target.getTextChildren()[0]
-        opening = first ? textOf(first) : ""
-      } catch {
-        opening = ""
-      }
+    try {
+      const first = usage.getTextChildren()[0]
+      opening = first ? textOf(first) : ""
+    } catch {
+      opening = ""
     }
-    const value =
-      mode === "shell" ? ` · ${label}` : opening.startsWith(" · ") ? label : `${label} · `
+    const value = opening.startsWith(" · ") ? label : `${label} · `
 
-    if (footerFigures && footerFigures.text !== target) releaseFooter()
+    if (footerFigures && footerFigures.text !== usage) releaseFooter()
 
     try {
       if (footerFigures) {
         setText(footerFigures.node, value)
-        footerFigures.mode = mode
       } else {
-        const node = makeFooterNode(target, usage ?? target, value)
+        const node = makeFooterNode(usage, usage, value)
         if (!node) return
-        footerFigures = { text: target, node, mode }
+        footerFigures = { text: usage, node }
       }
 
-      if (mode === "shell") placeLast(target, footerFigures.node)
-      else placeFirst(target, footerFigures.node)
+      placeFirst(usage, footerFigures.node)
       reportFooter(true)
     } catch {
       releaseFooter()
