@@ -1,5 +1,5 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
-import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js"
 import type { SettingsStore } from "./settings"
 import type { TokenInjector } from "./token-inject"
 import { tokensTweak } from "./tokens"
@@ -273,28 +273,40 @@ export function TokenStatus(props: {
 
   const [placed, setPlaced] = createSignal(false)
 
+  const repaint = () => props.injector.setFooterFigures(figures(), setPlaced)
+
   createEffect(() => {
     // Read the host's detail state so the figures follow the usage line when
     // the host shows or hides it.
     props.input.showDetails
-    children()
-    props.injector.setFooterFigures(figures(), setPlaced)
+    repaint()
+  })
 
-    // The host draws the shell indicator one render after the state changes.
-    // A short second pass catches it without waiting for the repair interval.
-    const timer = setTimeout(() => {
-      props.injector.setFooterFigures(figures(), setPlaced)
-    }, 60)
-    onCleanup(() => clearTimeout(timer))
+  // The host adds or removes its shell indicator in a render pass of its own,
+  // which rebuilds the usage text and leaves the figures beside a stray
+  // separator for a moment. Repainting right away, then again over the next
+  // frames, keeps the line from settling visibly.
+  let lastPresence: boolean | undefined
+  createEffect(() => {
+    const present = children()
+    if (present === lastPresence) return
+    lastPresence = present
+    // The token counters must not re-run this effect: it would cancel the
+    // follow-up passes every time a figure changes.
+    untrack(repaint)
+    const passes = [16, 50, 150].map((delay) => setTimeout(() => untrack(repaint), delay))
+    onCleanup(() => {
+      for (const pass of passes) clearTimeout(pass)
+    })
   })
 
   const [stale, setStale] = createSignal(false)
 
   createEffect(() => {
-    if (placed()) {
-      setStale(false)
-      return
-    }
+    // A rejected splice is transient while the host redraws the line, so the
+    // slot only takes over after the figures have stayed out for a while.
+    setStale(false)
+    if (placed()) return
     const timer = setTimeout(() => setStale(true), 500)
     onCleanup(() => clearTimeout(timer))
   })

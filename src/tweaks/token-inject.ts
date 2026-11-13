@@ -472,14 +472,11 @@ export function createTokenInjector(context: Context): TokenInjector {
       return
     }
 
-    let opening = ""
-    try {
-      const first = usage.getTextChildren()[0]
-      opening = first ? textOf(first) : ""
-    } catch {
-      opening = ""
-    }
-    const value = opening.startsWith(" · ") ? label : `${label} · `
+    const leading = withoutInjected(
+      usage,
+      footerFigures?.text === usage ? footerFigures.node : undefined,
+    ).startsWith(" · ")
+    const value = leading ? ` · ${label}` : `${label} · `
 
     if (footerFigures && footerFigures.text !== usage) releaseFooter()
 
