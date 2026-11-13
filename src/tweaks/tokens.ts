@@ -73,6 +73,15 @@ export const tokensTweak = defineTweak({
       labels: ["Auto", "2 digits", "3 digits", "4 digits", "5 digits", "6 digits"],
     },
     {
+      id: "ttft",
+      title: "First token time",
+      description:
+        "Show the host's ttft figure, the wait before the first token, at the end of the throughput line. Turn it off to keep tok/s alone.",
+      category: "Display",
+      kind: "boolean",
+      default: true,
+    },
+    {
       id: "count",
       title: "Token count",
       description:

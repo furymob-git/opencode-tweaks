@@ -114,6 +114,9 @@ The line belongs to the turn that finished above it, so each line keeps its own 
 previous line still shows the previous turn's numbers rather than the running one's. When a turn finishes, its line
 receives its figures and the older lines keep theirs.
 
+`First token time` controls the host's own `1.7s ttft` figure at the end of that line: turning it off removes the span
+and leaves `tok/s` in place, and turning it back on restores it.
+
 `Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
 
 `Session tokens` adds the session's total usage to the bottom status line, next to the context percentage:
