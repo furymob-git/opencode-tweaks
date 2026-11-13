@@ -22,21 +22,22 @@ describe("formatPercent", () => {
 })
 
 describe("formatReset", () => {
-  it("keeps hours and minutes below twelve hours", () => {
+  it("keeps hours and minutes below a day", () => {
     expect(formatReset(resetIn(68), now)).toBe("1h 8m")
     expect(formatReset(resetIn(719), now)).toBe("11h 59m")
+    expect(formatReset(resetIn(1440 - 1), now)).toBe("23h 59m")
   })
 
-  it("uses whole hours from twelve hours", () => {
-    expect(formatReset(resetIn(720), now)).toBe("12h")
+  it("uses whole hours when the minutes are zero", () => {
     expect(formatReset(resetIn(60), now)).toBe("1h")
     expect(formatReset(resetIn(59), now)).toBe("59m")
   })
 
-  it("uses one decimal day from a day", () => {
-    expect(formatReset(resetIn(1440), now)).toBe("1.0d")
-    expect(formatReset(resetIn(3 * 1440), now)).toBe("3.0d")
-    expect(formatReset(resetIn(29.6 * 1440), now)).toBe("29.6d")
+  it("adds the hours to whole days", () => {
+    expect(formatReset(resetIn(1440), now)).toBe("1d")
+    expect(formatReset(resetIn(3 * 1440), now)).toBe("3d")
+    expect(formatReset(resetIn(3 * 1440 - 1), now)).toBe("2d 23h")
+    expect(formatReset(resetIn(29.6 * 1440), now)).toBe("29d 14h")
   })
 
   it("says now for a past reset", () => {
