@@ -158,6 +158,8 @@ export interface TokenInjector {
 /** The nodes written on one footer, and the values they currently hold. */
 interface Placed {
   values: InjectorLabels
+  /** The host's own throughput text, which changes if the line is reused. */
+  readonly signature: string
   beforeNode?: HostNode
   afterNode?: HostNode
 }
@@ -295,7 +297,7 @@ export function createTokenInjector(context: Context): TokenInjector {
 
     let target = record
     if (!target) {
-      target = { values }
+      target = { values, signature: textOf(span) }
       placed.set(text, target)
     }
     target.values = values
@@ -319,9 +321,11 @@ export function createTokenInjector(context: Context): TokenInjector {
     try {
       const texts = throughputTexts(context.renderer.root)
 
-      // Forget the footers the host dropped, so their nodes do not linger.
+      // Forget the footers the host dropped, and the ones it reused for another
+      // turn, so no figure ends up on a line it does not belong to.
       for (const [text, record] of placed) {
-        if (texts.includes(text)) continue
+        const span = texts.includes(text) ? throughputSpan(text) : undefined
+        if (span && textOf(span) === record.signature) continue
         releasePlaced(record)
         placed.delete(text)
       }
