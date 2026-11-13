@@ -4,12 +4,12 @@ import {
   formatCost,
   formatTokens,
   type MessageTokens,
+  messagesCost,
   priceFor,
+  replyTurnMessages,
+  replyTurnTokens,
   sessionTokens,
   type TokenMessage,
-  turnCost,
-  turnMessages,
-  turnTokens,
 } from "./tokens-model"
 
 const usage = (
@@ -58,7 +58,7 @@ describe("sessionTokens", () => {
   })
 })
 
-describe("turnTokens", () => {
+describe("replyTurnTokens", () => {
   const turn: TokenMessage[] = [
     { type: "user" },
     { type: "assistant", tokens: usage(100, 20) },
@@ -67,14 +67,14 @@ describe("turnTokens", () => {
     { type: "assistant", tokens: usage(4, 1) },
   ]
 
-  it("sums only the assistant messages after the last prompt", () => {
-    expect(turnTokens(turn, "all")).toBe(221)
-    expect(turnTokens(turn, "new")).toBe(21)
+  it("sums only the assistant messages of the newest reply", () => {
+    expect(replyTurnTokens(turn, "all")).toBe(221)
+    expect(replyTurnTokens(turn, "new")).toBe(21)
   })
 
   it("keeps counting after tool calls and synthetic messages", () => {
     expect(
-      turnTokens(
+      replyTurnTokens(
         [
           { type: "user" },
           { type: "assistant", tokens: usage(50, 10) },
@@ -88,7 +88,7 @@ describe("turnTokens", () => {
 
   it("falls back to the whole session when no prompt is left", () => {
     expect(
-      turnTokens(
+      replyTurnTokens(
         [
           { type: "assistant", tokens: usage(30, 3) },
           { type: "assistant", tokens: usage(2, 1) },
@@ -98,23 +98,46 @@ describe("turnTokens", () => {
     ).toBe(36)
   })
 
-  it("returns zero right after a prompt", () => {
-    expect(turnTokens([{ type: "assistant", tokens: usage(90, 9) }, { type: "user" }], "all")).toBe(
-      0,
-    )
+  it("keeps the previous reply while a new prompt is unanswered", () => {
+    expect(
+      replyTurnTokens([{ type: "assistant", tokens: usage(90, 9) }, { type: "user" }], "all"),
+    ).toBe(99)
+  })
+
+  it("returns zero before the first reply", () => {
+    expect(replyTurnTokens([{ type: "user" }], "all")).toBe(0)
   })
 })
 
-describe("turnMessages", () => {
-  it("keeps only the messages after the last prompt", () => {
+describe("replyTurnMessages", () => {
+  it("keeps the newest reply's turn and ignores the prompt after it", () => {
     expect(
-      turnMessages([
+      replyTurnMessages([
         { type: "user" },
         { type: "assistant" },
         { type: "user" },
         { type: "assistant" },
+        { type: "assistant" },
+        { type: "user" },
       ]),
-    ).toHaveLength(1)
+    ).toHaveLength(2)
+  })
+
+  it("keeps the turn together and stops at the next prompt", () => {
+    const messages: TokenMessage[] = [
+      { type: "user" },
+      { type: "assistant" },
+      { type: "system" },
+      { type: "user" },
+    ]
+    expect(replyTurnMessages(messages).map((message) => message.type)).toEqual([
+      "assistant",
+      "system",
+    ])
+  })
+
+  it("returns nothing before the first reply", () => {
+    expect(replyTurnMessages([{ type: "user" }])).toEqual([])
   })
 })
 
@@ -145,13 +168,10 @@ describe("estimateCost", () => {
   })
 })
 
-describe("turnCost", () => {
-  it("sums the cost of the assistant messages after the last prompt", () => {
+describe("messagesCost", () => {
+  it("sums the reported cost of the messages", () => {
     expect(
-      turnCost([
-        { type: "user" },
-        { type: "assistant", cost: 0.01 },
-        { type: "user" },
+      messagesCost([
         { type: "assistant", cost: 0.0004 },
         { type: "assistant", cost: 0.0002 },
       ]),
@@ -162,9 +182,8 @@ describe("turnCost", () => {
     const price = { input: 0.15, output: 0.6, cache: { read: 0, write: 0 } }
 
     expect(
-      turnCost(
+      messagesCost(
         [
-          { type: "user" },
           { type: "assistant", tokens: usage(1_000_000, 0), cost: 0 },
           { type: "assistant", tokens: usage(1_000_000, 0), cost: 0.5 },
         ],
@@ -175,19 +194,21 @@ describe("turnCost", () => {
 
   it("keeps the reported cost when no price is known", () => {
     expect(
-      turnCost(
-        [{ type: "user" }, { type: "assistant", tokens: usage(10, 1), cost: 0 }],
-        () => undefined,
-      ),
+      messagesCost([{ type: "assistant", tokens: usage(10, 1), cost: 0 }], () => undefined),
     ).toBe(0)
   })
 
-  it("falls back to the whole session when no prompt is left", () => {
-    expect(turnCost([{ type: "assistant", cost: 0.02 }])).toBeCloseTo(0.02)
+  it("prices the turn the newest reply belongs to", () => {
+    const messages: TokenMessage[] = [
+      { type: "user" },
+      { type: "assistant", cost: 0.01 },
+      { type: "user" },
+    ]
+    expect(messagesCost(replyTurnMessages(messages))).toBeCloseTo(0.01)
   })
 
   it("does not add a missing cost twice", () => {
-    expect(turnCost([{ type: "user" }, { type: "assistant" }])).toBe(0)
+    expect(messagesCost([{ type: "assistant" }])).toBe(0)
   })
 })
 

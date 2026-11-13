@@ -10,11 +10,12 @@ import {
   formatTokens,
   isCostDigits,
   type ModelPrice,
+  messagesCost,
   priceFor,
+  replyTurnMessages,
+  sessionTokens,
   type TokenCount,
   type TokenMessage,
-  turnCost,
-  turnTokens,
   usageTokens,
 } from "./tokens-model"
 import type { TweakSetting } from "./types"
@@ -112,10 +113,25 @@ function useCounts(props: {
     }, 0),
   )
 
-  const prompt = createMemo(() => {
+  // The inline figures follow the newest reply, because that is the turn whose
+  // `tok/s` line the host draws. A prompt with no reply yet keeps the previous
+  // turn on screen instead of blanking the line.
+  const turn = createMemo(() => {
     const sessionID = props.sessionID()
-    return sessionID ? turnTokens(messages(sessionID), count()) : 0
+    return sessionID ? replyTurnMessages(messages(sessionID)) : []
   })
+
+  const prompt = createMemo(() => sessionTokens(turn(), count()))
+
+  // A reply that has not produced a counter yet is still empty, so it shows no
+  // figures rather than a zero cost.
+  const replied = createMemo(() =>
+    turn().some((message) => {
+      if (message.type !== "assistant") return false
+      if ((message.cost ?? 0) > 0) return true
+      return message.tokens ? usageTokens(message.tokens, "all") > 0 : false
+    }),
+  )
 
   const sessionCost = createMemo(() =>
     family().reduce((sum, sessionID) => {
@@ -129,8 +145,7 @@ function useCounts(props: {
   )
 
   const cost = createMemo(() => {
-    const sessionID = props.sessionID()
-    if (!sessionID) return 0
+    if (!replied()) return undefined
 
     const lookup = estimate()
       ? (message: TokenMessage) => {
@@ -140,7 +155,7 @@ function useCounts(props: {
         }
       : undefined
 
-    return turnCost(messages(sessionID), lookup)
+    return messagesCost(turn(), lookup)
   })
 
   /** The formatted count, or `undefined` while there is nothing worth showing. */
@@ -148,8 +163,12 @@ function useCounts(props: {
 
   const promptCount = () => (enabled() && perPrompt() ? format(prompt()) : undefined)
   const totalCount = () => (enabled() && sessionTotal() ? format(total()) : undefined)
-  const promptCostLabel = () =>
-    enabled() && promptCost() ? formatCost(cost(), costDigits()) : undefined
+  const promptCostLabel = () => {
+    const value = cost()
+    return enabled() && promptCost() && value !== undefined
+      ? formatCost(value, costDigits())
+      : undefined
+  }
   const totalCostLabel = () =>
     enabled() && totalCost() ? formatCost(sessionCost(), costDigits()) : undefined
 

@@ -52,26 +52,40 @@ export function sessionTokens(messages: readonly TokenMessage[], mode: TokenCoun
   return messages.reduce((total, message) => total + messageTokens(message, mode), 0)
 }
 
-/** The index just after the last user prompt, which is where the turn starts. */
-function turnStart(messages: readonly TokenMessage[]): number {
-  for (let index = messages.length - 1; index >= 0; index--) {
+/** The index just after the last user prompt before `end`. */
+function turnStart(messages: readonly TokenMessage[], end: number): number {
+  for (let index = end - 1; index >= 0; index--) {
     if (messages[index]?.type === "user") return index + 1
   }
   return 0
 }
 
-/**
- * The tokens the current turn spent: every assistant message after the last
- * user prompt. A session whose history starts mid-turn, or that has no prompt
- * left after compaction, falls back to all of its messages.
- */
-export function turnTokens(messages: readonly TokenMessage[], mode: TokenCount): number {
-  return sessionTokens(messages.slice(turnStart(messages)), mode)
+/** Where the turn that starts at `start` ends: at the next prompt, or the end. */
+function turnEnd(messages: readonly TokenMessage[], start: number): number {
+  for (let index = start; index < messages.length; index++) {
+    if (messages[index]?.type === "user") return index
+  }
+  return messages.length
 }
 
-/** The messages of the current turn, so callers can walk them themselves. */
-export function turnMessages(messages: readonly TokenMessage[]): readonly TokenMessage[] {
-  return messages.slice(turnStart(messages))
+/**
+ * The messages of the newest turn that has a reply. The host draws its `tok/s`
+ * line under that reply, so this is the turn the inline numbers describe: right
+ * after a prompt is sent the current turn is still empty, and the newest line
+ * still on screen is the previous turn's.
+ */
+export function replyTurnMessages(messages: readonly TokenMessage[]): readonly TokenMessage[] {
+  let last = messages.length - 1
+  while (last >= 0 && messages[last]?.type !== "assistant") last--
+  if (last < 0) return []
+
+  const start = turnStart(messages, last + 1)
+  return messages.slice(start, turnEnd(messages, start))
+}
+
+/** The tokens that turn spent under the chosen definition. */
+export function replyTurnTokens(messages: readonly TokenMessage[], mode: TokenCount): number {
+  return sessionTokens(replyTurnMessages(messages), mode)
 }
 
 /** A model's list price, in dollars per million tokens. */
@@ -122,11 +136,11 @@ export function estimateCost(tokens: MessageTokens, price: ModelPrice): number {
 export type PriceLookup = (message: TokenMessage) => ModelPrice | undefined
 
 /**
- * The cost of the current turn: what the provider reported, or the list-price
+ * The cost of a list of messages: what the provider reported, or the list-price
  * estimate when it reported nothing and a price is available.
  */
-export function turnCost(messages: readonly TokenMessage[], price?: PriceLookup): number {
-  return turnMessages(messages).reduce((total, message) => {
+export function messagesCost(messages: readonly TokenMessage[], price?: PriceLookup): number {
+  return messages.reduce((total, message) => {
     const reported = message.cost ?? 0
     if (reported > 0) return total + reported
     if (!price || !message.tokens) return total + reported

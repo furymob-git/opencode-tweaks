@@ -23,7 +23,7 @@ export const tokensTweak = defineTweak({
       id: "prompt",
       title: "Turn tokens",
       description:
-        "Show the tokens this turn spent, inline with its tok/s line. Best effort: that line belongs to OpenCode.",
+        "Show the newest reply's tokens inline with its tok/s line. Best effort: that line belongs to OpenCode.",
       category: "Display",
       kind: "boolean",
       default: true,
@@ -31,7 +31,7 @@ export const tokensTweak = defineTweak({
     {
       id: "promptCost",
       title: "Turn cost",
-      description: "Show this turn's cost after the tok/s figure.",
+      description: "Show that reply's cost after the tok/s figure.",
       category: "Display",
       kind: "boolean",
       default: false,
