@@ -11,8 +11,8 @@ optional, and the defaults stay exactly where they are.
 
 ## Status
 
-Early development. The plugin installs and loads, but no tweaks have shipped yet. Both the tweak list and the
-configuration format may change before the first stable release.
+Early development. The `/tweaks` menu and the first tweak's settings are in place; the quota sidebar itself comes next.
+Both the tweak list and the configuration format may change before the first stable release.
 
 ## Principles
 
@@ -44,10 +44,49 @@ published, installation will be:
 opencode plugin add opencode-tweaks
 ```
 
+## Settings
+
+Run `/tweaks` to open the settings menu. It mirrors OpenCode's own settings dialog: the same theme, grouped rows, search
+field, and footer hints. The tweak list opens first; selecting one shows its settings. Boolean settings toggle in place;
+other settings cycle through their values with `enter` or `←`/`→`. Press `ctrl+r` to reset the selected setting.
+
+The command also appears in the palette under `Tweaks`. Its id is `opencode-tweaks.tweaks` if you want to bind a key in
+`cli.json`.
+
+Values are resolved in this order:
+
+1. a value changed from `/tweaks` and stored locally by the plugin
+2. an option in `opencode.json`
+3. the default in the tweak definition
+
+Options are useful when you want the same configuration on several machines:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "opencode-tweaks",
+      "options": {
+        "quota": {
+          "enabled": true,
+          "barWidth": 30
+        }
+      }
+    }
+  ]
+}
+```
+
+Resetting a setting drops the local value, so the option or default applies again.
+
 ## Tweaks
 
-No tweaks are available yet. Each one will be listed here with its identifier, the behavior it changes, and whether it
-is enabled by default.
+| Tweak   | What it does                                           | Default |
+| ------- | ------------------------------------------------------ | ------- |
+| `quota` | Provider quota and reset times in the session sidebar. | Off     |
+
+The quota settings are available from `/tweaks` now. The sidebar panel arrives in the next feature branch.
 
 ## Development
 
@@ -56,15 +95,23 @@ npm install
 npm run check
 ```
 
-`npm run check` runs the type checker and the linter. `npm run format` applies the formatter.
+`npm run check` runs the type checker, the linter, and the tests. `npm run format` applies the formatter.
 
 OpenCode loads the package from `src`, so there is no build step. To test changes, configure the checkout as a local
 plugin (see Install) and let the config watcher reload it. If a change is not picked up, run `opencode service restart`.
 
 ```text
 src/
-  index.ts   server entry: config transforms, tools, session hooks
-  tui.tsx    terminal entry: commands, keymaps, slots, dialogs
+  index.ts          server entry: config transforms, tools, session hooks
+  tui.tsx           terminal entry: command registration
+  tweaks/
+    types.ts        settings schema and validation
+    registry.ts     list of tweaks
+    settings.ts     stored, config, and default resolution
+    menu.ts         /tweaks entry
+    menu-dialog.tsx reactive settings dialog
+    menu-model.ts   filtering and selection helpers
+    quota.ts        quota tweak definition
 ```
 
 ## Contributing
