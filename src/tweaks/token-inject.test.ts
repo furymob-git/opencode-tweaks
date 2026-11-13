@@ -98,6 +98,13 @@ function removeChild(children: ue[], node: ue) {
   node.parent = null
 }
 
+/** The text a node subtree holds, enough for these fixtures. */
+function nodeText(node: ue): string {
+  return node.children
+    .map((child) => (typeof child === "string" ? child : nodeText(child)))
+    .join("")
+}
+
 function injectorFor(extra: ue[] = []) {
   // The host renders ` · 62.2 tok/s` as a span around a leaf text node, and the
   // injector takes its class from that leaf rather than from a class name.
@@ -208,5 +215,97 @@ describe("createTokenInjector", () => {
     } as unknown as Context)
     injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" })
     injector.dispose()
+  })
+})
+
+/** One turn's footer, with its own throughput span. */
+function footer(rate: string) {
+  const span = new Ie()
+  const throughput = new ue()
+  throughput.add(` · ${rate} tok/s`)
+  span.add(throughput)
+  const text = hostText(`Build · Model · 2s · ${rate} tok/s`, [span])
+  return { text, span, children: text.getTextChildren() as ue[] }
+}
+
+describe("createTokenInjector across turns", () => {
+  it("writes the figures on the newest footer only", () => {
+    const first = footer("12.0")
+    const second = footer("62.2")
+    const root = { getChildren: () => [first.text, second.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 2")
+
+    expect(first.children).toHaveLength(1)
+    expect(second.children.map(nodeText)).toEqual([" · 8.5M tok", " · 62.2 tok/s", " · $0.0042"])
+    injector.dispose()
+  })
+
+  it("keeps the previous line's figures when a newer footer appears", () => {
+    const first = footer("12.0")
+    const root = { getChildren: (): unknown[] => [first.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setLabels({ before: " · 1.2K tok", after: " · $0.0010" }, "turn 1")
+    expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s", " · $0.0010"])
+
+    const second = footer("62.2")
+    root.getChildren = () => [first.text, second.text]
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 2")
+
+    expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s", " · $0.0010"])
+    expect(second.children.map(nodeText)).toEqual([" · 8.5M tok", " · 62.2 tok/s", " · $0.0042"])
+    injector.dispose()
+  })
+
+  it("waits for the new turn's footer instead of writing on the old line", () => {
+    const first = footer("12.0")
+    const root = { getChildren: (): unknown[] => [first.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setLabels({ before: " · 1.2K tok", after: " · $0.0010" }, "turn 1")
+    // The figures for turn 2 land before the host renders its footer.
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 2")
+    expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s", " · $0.0010"])
+
+    const second = footer("62.2")
+    root.getChildren = () => [first.text, second.text]
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 2")
+
+    expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s", " · $0.0010"])
+    expect(second.children.map(nodeText)).toEqual([" · 8.5M tok", " · 62.2 tok/s", " · $0.0042"])
+    injector.dispose()
+  })
+
+  it("leaves the frozen lines alone when the newest turn has nothing to show", () => {
+    const first = footer("12.0")
+    const second = footer("62.2")
+    const root = { getChildren: (): unknown[] => [first.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setLabels({ before: " · 1.2K tok" }, "turn 1")
+    root.getChildren = () => [first.text, second.text]
+    injector.setLabels({ before: " · 8.5M tok" }, "turn 2")
+    injector.setLabels({}, "turn 2")
+
+    expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s"])
+    expect(second.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
+    injector.dispose()
+  })
+
+  it("clears every line when the tweak is turned off", () => {
+    const first = footer("12.0")
+    const second = footer("62.2")
+    const root = { getChildren: (): unknown[] => [first.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setLabels({ before: " · 1.2K tok" }, "turn 1")
+    root.getChildren = () => [first.text, second.text]
+    injector.setLabels({ before: " · 8.5M tok" }, "turn 2")
+    injector.clear()
+
+    expect(first.children.map(nodeText)).toEqual([" · 12.0 tok/s"])
+    expect(second.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
   })
 })

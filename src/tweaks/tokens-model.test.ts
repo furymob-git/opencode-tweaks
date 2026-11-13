@@ -61,10 +61,10 @@ describe("sessionTokens", () => {
 describe("replyTurnTokens", () => {
   const turn: TokenMessage[] = [
     { type: "user" },
-    { type: "assistant", tokens: usage(100, 20) },
+    { type: "assistant", tokens: usage(100, 20), finish: "stop" },
     { type: "user" },
     { type: "assistant", tokens: usage(10, 2, 1, 200, 3) },
-    { type: "assistant", tokens: usage(4, 1) },
+    { type: "assistant", tokens: usage(4, 1), finish: "stop" },
   ]
 
   it("sums only the assistant messages of the newest reply", () => {
@@ -77,9 +77,9 @@ describe("replyTurnTokens", () => {
       replyTurnTokens(
         [
           { type: "user" },
-          { type: "assistant", tokens: usage(50, 10) },
+          { type: "assistant", tokens: usage(50, 10), finish: "tool-calls" },
           { type: "system" },
-          { type: "assistant", tokens: usage(5, 1) },
+          { type: "assistant", tokens: usage(5, 1), finish: "stop" },
         ],
         "new",
       ),
@@ -91,7 +91,7 @@ describe("replyTurnTokens", () => {
       replyTurnTokens(
         [
           { type: "assistant", tokens: usage(30, 3) },
-          { type: "assistant", tokens: usage(2, 1) },
+          { type: "assistant", tokens: usage(2, 1), finish: "stop" },
         ],
         "new",
       ),
@@ -100,24 +100,44 @@ describe("replyTurnTokens", () => {
 
   it("keeps the previous reply while a new prompt is unanswered", () => {
     expect(
-      replyTurnTokens([{ type: "assistant", tokens: usage(90, 9) }, { type: "user" }], "all"),
+      replyTurnTokens(
+        [{ type: "assistant", tokens: usage(90, 9), finish: "stop" }, { type: "user" }],
+        "all",
+      ),
     ).toBe(99)
   })
 
-  it("returns zero before the first reply", () => {
+  it("keeps the previous reply while the next step is still running", () => {
+    expect(
+      replyTurnTokens(
+        [
+          { type: "user" },
+          { type: "assistant", tokens: usage(90, 9), finish: "stop" },
+          { type: "user" },
+          { type: "assistant", tokens: usage(5, 1) },
+        ],
+        "all",
+      ),
+    ).toBe(99)
+  })
+
+  it("returns zero before the first finished reply", () => {
     expect(replyTurnTokens([{ type: "user" }], "all")).toBe(0)
+    expect(
+      replyTurnTokens([{ type: "user" }, { type: "assistant", tokens: usage(5, 1) }], "all"),
+    ).toBe(0)
   })
 })
 
 describe("replyTurnMessages", () => {
-  it("keeps the newest reply's turn and ignores the prompt after it", () => {
+  it("keeps the newest finished turn and ignores the prompt after it", () => {
     expect(
       replyTurnMessages([
         { type: "user" },
-        { type: "assistant" },
+        { type: "assistant", finish: "stop" },
         { type: "user" },
-        { type: "assistant" },
-        { type: "assistant" },
+        { type: "assistant", finish: "tool-calls" },
+        { type: "assistant", finish: "stop" },
         { type: "user" },
       ]),
     ).toHaveLength(2)
@@ -126,7 +146,7 @@ describe("replyTurnMessages", () => {
   it("keeps the turn together and stops at the next prompt", () => {
     const messages: TokenMessage[] = [
       { type: "user" },
-      { type: "assistant" },
+      { type: "assistant", finish: "stop" },
       { type: "system" },
       { type: "user" },
     ]
@@ -136,8 +156,28 @@ describe("replyTurnMessages", () => {
     ])
   })
 
-  it("returns nothing before the first reply", () => {
+  it("ignores the running step that has no footer yet", () => {
+    const messages: TokenMessage[] = [
+      { type: "user" },
+      { type: "assistant", finish: "stop" },
+      { type: "user" },
+      { type: "assistant" },
+    ]
+    expect(replyTurnMessages(messages).map((message) => message.type)).toEqual(["assistant"])
+  })
+
+  it("counts a failed turn, because the host still draws its footer", () => {
+    expect(
+      replyTurnMessages([
+        { type: "user" },
+        { type: "assistant", error: { message: "provider failed" } },
+      ]),
+    ).toHaveLength(1)
+  })
+
+  it("returns nothing before the first footer", () => {
     expect(replyTurnMessages([{ type: "user" }])).toEqual([])
+    expect(replyTurnMessages([{ type: "user" }, { type: "assistant" }])).toEqual([])
   })
 })
 
@@ -198,10 +238,10 @@ describe("messagesCost", () => {
     ).toBe(0)
   })
 
-  it("prices the turn the newest reply belongs to", () => {
+  it("prices the turn the newest footer belongs to", () => {
     const messages: TokenMessage[] = [
       { type: "user" },
-      { type: "assistant", cost: 0.01 },
+      { type: "assistant", cost: 0.01, finish: "stop" },
       { type: "user" },
     ]
     expect(messagesCost(replyTurnMessages(messages))).toBeCloseTo(0.01)
