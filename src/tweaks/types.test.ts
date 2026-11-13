@@ -151,6 +151,7 @@ describe("quotaTweak", () => {
       "enabled",
       "barWidth",
       "percent",
+      "percentDecimals",
       "showReset",
       "providerAlign",
       "providerTab",
@@ -172,6 +173,11 @@ describe("quotaTweak", () => {
     const reserve = quotaTweak.settings.find((setting) => setting.id === "reserve")
     expect(budget?.default).toBe(true)
     expect(reserve?.default).toBe(0)
+
+    const decimals = quotaTweak.settings.find((setting) => setting.id === "percentDecimals")
+    expect(decimals?.kind).toBe("select")
+    expect(decimals?.values).toEqual([0, 1, 2])
+    expect(decimals?.default).toBe(1)
 
     const workdays = quotaTweak.settings
       .filter((setting) => setting.id.startsWith("work"))

@@ -42,6 +42,7 @@ function setting(id: string): TweakSetting {
 const ENABLED = setting("enabled")
 const BAR_WIDTH = setting("barWidth")
 const PERCENT = setting("percent")
+const PERCENT_DECIMALS = setting("percentDecimals")
 const SHOW_RESET = setting("showReset")
 const PROVIDER_ALIGN = setting("providerAlign")
 const PROVIDER_TAB = setting("providerTab")
@@ -246,18 +247,22 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
   })
   const inlineProvider = createMemo(() => props.store.read(quotaTweak, PROVIDER_TAB).value === true)
   const windows = createMemo(() => snapshots().flatMap((snapshot) => snapshot.windows))
+  const decimals = createMemo(() => {
+    const value = props.store.read(quotaTweak, PERCENT_DECIMALS).value
+    return typeof value === "number" ? value : 1
+  })
   const shownPercent = (window: QuotaWindowSnapshot) => {
-    const remaining = Math.max(0, Math.min(100, window.percentRemaining))
+    const remaining = Math.max(0, Math.min(100, exactRemaining(window)))
     return mode() === "used" ? 100 - remaining : remaining
   }
   const percentWidth = createMemo(() => {
     const widest = windows().reduce(
-      (width, window) => Math.max(width, formatPercent(shownPercent(window)).length),
+      (width, window) => Math.max(width, formatPercent(shownPercent(window), decimals()).length),
       0,
     )
     // The daily bar shows a share of its own allowance, so it can read 100%
     // even when every quota percentage is shorter.
-    const daily = dailyBudget() && windows().length > 0 ? 4 : 0
+    const daily = dailyBudget() && windows().length > 0 ? formatPercent(100, decimals()).length : 0
 
     return Math.max(MIN_PERCENT_WIDTH, widest, daily)
   })
@@ -306,6 +311,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
             panelWidth={panelWidth()}
             width={width()}
             percentWidth={percentWidth()}
+            decimals={decimals()}
             showReset={showReset()}
             mode={mode()}
             now={now()}
@@ -333,6 +339,7 @@ function QuotaSection(props: {
   readonly panelWidth: number
   readonly width: number
   readonly percentWidth: number
+  readonly decimals: number
   readonly showReset: boolean
   readonly mode: "remaining" | "used"
   readonly now: number
@@ -379,6 +386,7 @@ function QuotaSection(props: {
               window={window}
               width={props.width}
               percentWidth={props.percentWidth}
+              decimals={props.decimals}
               showReset={props.showReset}
               mode={props.mode}
               now={props.now}
@@ -392,6 +400,7 @@ function QuotaSection(props: {
               rest={budget().rest}
               width={props.width}
               percentWidth={props.percentWidth}
+              decimals={props.decimals}
               showReset={props.showReset}
               mode={props.mode}
               now={props.now}
@@ -418,6 +427,7 @@ function DayRow(props: {
   readonly rest: boolean
   readonly width: number
   readonly percentWidth: number
+  readonly decimals: number
   readonly showReset: boolean
   readonly mode: "remaining" | "used"
   readonly now: number
@@ -446,7 +456,7 @@ function DayRow(props: {
         <span style={{ fg: theme().text.muted }}>{bar().empty}</span>
       </text>
       <text flexShrink={0} fg={props.rest ? theme().text.muted : color()}>
-        {(props.rest ? "–" : formatPercent(shown())).padStart(props.percentWidth)}
+        {(props.rest ? "–" : formatPercent(shown(), props.decimals)).padStart(props.percentWidth)}
       </text>
       <Show when={props.showReset || props.rest}>
         <text flexShrink={0} fg={theme().text.muted}>
@@ -461,13 +471,14 @@ function QuotaRow(props: {
   readonly window: QuotaWindowSnapshot
   readonly width: number
   readonly percentWidth: number
+  readonly decimals: number
   readonly showReset: boolean
   readonly mode: "remaining" | "used"
   readonly now: number
 }) {
   const context = usePlugin()
   const theme = () => context.theme
-  const remaining = () => Math.max(0, Math.min(100, props.window.percentRemaining))
+  const remaining = () => Math.max(0, Math.min(100, exactRemaining(props.window)))
   const shown = () => (props.mode === "used" ? 100 - remaining() : remaining())
   const color = () => theme().text.feedback[FEEDBACK[levelOf(remaining())]].base
   const bar = createMemo(() => barParts(shown(), props.width))
@@ -483,7 +494,7 @@ function QuotaRow(props: {
         <span style={{ fg: theme().text.muted }}>{bar().empty}</span>
       </text>
       <text flexShrink={0} fg={color()}>
-        {formatPercent(shown()).padStart(props.percentWidth)}
+        {formatPercent(shown(), props.decimals).padStart(props.percentWidth)}
       </text>
       <Show when={props.showReset}>
         <text flexShrink={0} fg={theme().text.muted}>

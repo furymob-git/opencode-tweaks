@@ -38,6 +38,17 @@ export const quotaTweak = defineTweak({
       labels: ["remaining", "used"],
     },
     {
+      id: "percentDecimals",
+      title: "Percent decimals",
+      description:
+        "Decimals after the percent. Providers that report a finer share move the figure between whole points.",
+      category: "Display",
+      kind: "select",
+      default: 1,
+      values: [0, 1, 2],
+      labels: ["0 decimals", "1 decimal", "2 decimals"],
+    },
+    {
       id: "showReset",
       title: "Reset times",
       description: "Show when each quota window resets.",
