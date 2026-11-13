@@ -11,8 +11,8 @@ optional, and the defaults stay exactly where they are.
 
 ## Status
 
-Early development. The `/tweaks` menu and the first tweak's settings are in place; the quota sidebar itself comes next.
-Both the tweak list and the configuration format may change before the first stable release.
+Early development. The `/tweaks` menu and the OpenCode Go quota sidebar are in place. Both the tweak list and the
+configuration format may change before the first stable release.
 
 ## Principles
 
@@ -86,7 +86,19 @@ Resetting a setting drops the local value, so the option or default applies agai
 | ------- | ------------------------------------------------------ | ------- |
 | `quota` | Provider quota and reset times in the session sidebar. | Off     |
 
-The quota settings are available from `/tweaks` now. The sidebar panel arrives in the next feature branch.
+### Quota
+
+Quota shows the OpenCode Go limits for the 5h, 7d, and 30d windows. It uses the active OpenCode Console sign-in when
+there is one, then an `opencode-go` API key. Sign in with `opencode auth login opencode` or
+`opencode auth login opencode-go` before enabling the tweak.
+
+The panel refreshes every two minutes. Click the `Quota` header to collapse or expand the rows. Bar width defaults to
+`auto`, which uses the space the sidebar leaves after the percent and reset columns. A fixed width is available from
+`/tweaks`.
+
+The provider name sits on its own line by default and can be aligned left, center, or right. Enabling
+`One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
+rows collapsing underneath.
 
 ## Development
 
@@ -102,8 +114,13 @@ plugin (see Install) and let the config watcher reload it. If a change is not pi
 
 ```text
 src/
-  index.ts          server entry: config transforms, tools, session hooks
-  tui.tsx           terminal entry: command registration
+  index.ts          server entry: quota RPC registration
+  rpc.ts            typed RPC contract
+  quota/
+    service.ts      credential lookup and quota fetch
+    parse.ts        provider response parsing
+    format.ts       percents, reset times, and bars
+  tui.tsx           terminal entry: command and sidebar slot
   tweaks/
     types.ts        settings schema and validation
     registry.ts     list of tweaks
@@ -112,6 +129,7 @@ src/
     menu-dialog.tsx reactive settings dialog
     menu-model.ts   filtering and selection helpers
     quota.ts        quota tweak definition
+    quota-panel.tsx sidebar quota panel
 ```
 
 ## Contributing

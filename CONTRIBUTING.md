@@ -97,6 +97,8 @@ Use a merge commit. Do not squash, so the feature branch stays readable.
 - keep rendering code separate from data fetching and settings
 - prefer OpenCode theme tokens over fixed colors
 - anything that runs on a timer must clean up in the plugin's cleanup function
+- server-only work such as credentials and network calls belongs in the server part and is exposed through `src/rpc.ts`;
+  the TUI part must not read credential stores
 
 ## Tweaks
 
