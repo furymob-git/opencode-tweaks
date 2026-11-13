@@ -14,7 +14,16 @@ const WINDOW_DAYS: Readonly<Record<QuotaWindowKey, number>> = {
 export interface PaceWindow {
   readonly key: QuotaWindowKey
   readonly percentRemaining: number
+  readonly percentRemainingExact?: number
   readonly resetsAt: string
+}
+
+/**
+ * The share to pace with: the provider's exact figure when it publishes one, so
+ * the daily bar moves with real spending instead of a whole percent at a time.
+ */
+export function exactRemaining(window: PaceWindow): number {
+  return window.percentRemainingExact ?? window.percentRemaining
 }
 
 /**
