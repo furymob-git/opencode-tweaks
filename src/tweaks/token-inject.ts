@@ -150,6 +150,8 @@ export interface TokenInjector {
    * Empty fields hide them there.
    */
   setLabels(labels: InjectorLabels, key?: string): void
+  /** Hides the host's ttft figure on every footer, or brings it back. */
+  setTtft(visible: boolean): void
   /** Drops every figure, including the ones frozen on earlier lines. */
   clear(): void
   dispose(): void
@@ -169,7 +171,11 @@ export function createTokenInjector(context: Context): TokenInjector {
   let key: string | undefined
   let active: HostText | undefined
   let activeKey: string | undefined
+  /** Whether the host's own ttft figure stays on the line. */
+  let ttft = true
   const placed = new Map<HostText, Placed>()
+  /** The ttft spans taken out of a line, with what followed them. */
+  const hidden = new Map<HostText, { node: HostNode; anchor: unknown }>()
   let timer: ReturnType<typeof setInterval> | undefined
   /** Keeps the host's renderable ids unique across the lines we annotate. */
   let serial = 0
@@ -310,6 +316,7 @@ export function createTokenInjector(context: Context): TokenInjector {
 
   /** Whether anything still needs the repair timer. */
   function pending(): boolean {
+    if (!ttft) return true
     if (labels.before || labels.after) return true
     for (const record of placed.values()) {
       if (record.beforeNode || record.afterNode) return true
@@ -317,9 +324,58 @@ export function createTokenInjector(context: Context): TokenInjector {
     return false
   }
 
+  /** Takes the host's ` · 1.7s ttft` span out of every footer on screen. */
+  function hideTtft(texts: readonly HostText[]) {
+    for (const text of texts) {
+      const children = text.getTextChildren()
+      const index = children.findIndex((child) => isTextNode(child) && / ttft$/.test(textOf(child)))
+      if (index === -1) continue
+
+      const span = children[index] as HostNode
+      hidden.set(text, { node: span, anchor: children[index + 1] })
+      text.remove(span)
+    }
+
+    for (const text of hidden.keys()) {
+      if (!texts.includes(text)) hidden.delete(text)
+    }
+  }
+
+  /** Puts the ttft spans back where they were, before the line is rebuilt. */
+  function restoreTtft(texts: readonly HostText[]) {
+    for (const [text, record] of hidden) {
+      hidden.delete(text)
+      if (!texts.includes(text)) continue
+
+      const children = text.getTextChildren()
+      if (record.anchor && children.includes(record.anchor)) {
+        text.insertBefore(record.node, record.anchor)
+      } else {
+        text.add?.(record.node)
+      }
+    }
+  }
+
+  /** Restores every hidden figure, wherever the host still shows the line. */
+  function restoreAll() {
+    try {
+      restoreTtft(throughputTexts(context.renderer.root))
+    } catch {
+      hidden.clear()
+    }
+  }
+
   function repair() {
     try {
       const texts = throughputTexts(context.renderer.root)
+
+      // The host's ttft figure is optional, and it is the only part of the line
+      // the tweak removes rather than writes.
+      if (ttft) {
+        restoreTtft(texts)
+      } else {
+        hideTtft(texts)
+      }
 
       // Forget the footers the host dropped, and the ones it reused for another
       // turn, so no figure ends up on a line it does not belong to.
@@ -338,25 +394,27 @@ export function createTokenInjector(context: Context): TokenInjector {
         return
       }
 
-      if (active && texts.includes(active)) {
-        // A newer footer only takes the figures when its turn has finished and
-        // the host rendered the matching line. Without a key, the newest line
-        // is the best guess, which is how the injector behaves in isolation.
-        const retarget =
-          key === undefined
-            ? last !== active && !placed.has(last)
-            : activeKey !== key && last !== active && !placed.has(last)
-        if (retarget) {
-          active = last
-          activeKey = key
-        }
-      } else {
-        // The line we were refreshing left the tree, or there never was one.
-        active = undefined
-        activeKey = undefined
-        if (!placed.has(last)) {
-          active = last
-          activeKey = key
+      if (labels.before || labels.after) {
+        if (active && texts.includes(active)) {
+          // A newer footer only takes the figures when its turn has finished and
+          // the host rendered the matching line. Without a key, the newest line
+          // is the best guess, which is how the injector behaves in isolation.
+          const retarget =
+            key === undefined
+              ? last !== active && !placed.has(last)
+              : activeKey !== key && last !== active && !placed.has(last)
+          if (retarget) {
+            active = last
+            activeKey = key
+          }
+        } else {
+          // The line we were refreshing left the tree, or there never was one.
+          active = undefined
+          activeKey = undefined
+          if (!placed.has(last)) {
+            active = last
+            activeKey = key
+          }
         }
       }
 
@@ -400,15 +458,27 @@ export function createTokenInjector(context: Context): TokenInjector {
       start()
       repair()
     },
+    setTtft(visible) {
+      ttft = visible
+      if (visible) restoreAll()
+      if (!pending()) {
+        stop()
+        return
+      }
+      start()
+      repair()
+    },
     clear() {
       labels = {}
       key = undefined
+      restoreAll()
       detachAll()
       stop()
     },
     dispose() {
       labels = {}
       key = undefined
+      restoreAll()
       detachAll()
       stop()
     },

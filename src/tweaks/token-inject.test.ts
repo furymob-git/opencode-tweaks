@@ -218,13 +218,24 @@ describe("createTokenInjector", () => {
   })
 })
 
-/** One turn's footer, with its own throughput span. */
-function footer(rate: string) {
+/** One turn's footer, with its own throughput span and, optionally, ttft. */
+function footer(rate: string, ttft?: string) {
   const span = new Ie()
   const throughput = new ue()
   throughput.add(` · ${rate} tok/s`)
   span.add(throughput)
-  const text = hostText(`Build · Model · 2s · ${rate} tok/s`, [span])
+
+  const children: ue[] = [span]
+  if (ttft) {
+    const tail = new Ie()
+    tail.add(` · ${ttft} ttft`)
+    children.push(tail)
+  }
+
+  const text = hostText(
+    `Build · Model · 2s · ${rate} tok/s${ttft ? ` · ${ttft} ttft` : ""}`,
+    children,
+  )
   return { text, span, children: text.getTextChildren() as ue[] }
 }
 
@@ -307,5 +318,64 @@ describe("createTokenInjector across turns", () => {
 
     expect(first.children.map(nodeText)).toEqual([" · 12.0 tok/s"])
     expect(second.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
+  })
+})
+
+describe("createTokenInjector and the host's ttft", () => {
+  it("hides the ttft span and keeps the throughput", () => {
+    const line = footer("62.2", "1.7s")
+    const root = { getChildren: () => [line.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setTtft(false)
+    expect(line.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
+
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 1")
+    expect(line.children.map(nodeText)).toEqual([" · 8.5M tok", " · 62.2 tok/s", " · $0.0042"])
+    injector.dispose()
+  })
+
+  it("puts the ttft span back after the cost", () => {
+    const line = footer("62.2", "1.7s")
+    const root = { getChildren: () => [line.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setTtft(false)
+    injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 1")
+    injector.setTtft(true)
+
+    expect(line.children.map(nodeText)).toEqual([
+      " · 8.5M tok",
+      " · 62.2 tok/s",
+      " · $0.0042",
+      " · 1.7s ttft",
+    ])
+    injector.dispose()
+  })
+
+  it("hides it again on a line the host rebuilt", () => {
+    const line = footer("62.2", "1.7s")
+    const root = { getChildren: () => [line.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    const ttftSpan = line.children[1] as ue
+    injector.setTtft(false)
+    line.children.length = 0
+    line.children.push(line.span, ttftSpan)
+    injector.setTtft(false)
+
+    expect(line.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
+    injector.dispose()
+  })
+
+  it("brings ttft back when the tweak is turned off", () => {
+    const line = footer("62.2", "1.7s")
+    const root = { getChildren: () => [line.text] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setTtft(false)
+    injector.clear()
+
+    expect(line.children.map(nodeText)).toEqual([" · 62.2 tok/s", " · 1.7s ttft"])
   })
 })

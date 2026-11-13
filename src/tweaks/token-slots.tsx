@@ -37,6 +37,7 @@ const TOTAL_COST = setting("totalCost")
 const COST_DIGITS = setting("costDigits")
 const ESTIMATE = setting("estimateCost")
 const FORMAT = setting("format")
+const TTFT = setting("ttft")
 
 /**
  * The two counts, shared by both placements. The prompt count follows the open
@@ -206,6 +207,8 @@ export function TokenInline(props: {
       props.injector.clear()
       return
     }
+
+    props.injector.setTtft(props.store.read(tokensTweak, TTFT).value !== false)
 
     const count = counts.promptCount()
     const cost = counts.promptCostLabel()
