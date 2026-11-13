@@ -101,10 +101,10 @@ The provider name sits on its own line by default and can be aligned left, cente
 `One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
 rows collapsing underneath.
 
-`Current provider only` is on by default. The panel then follows the model in use: it appears for a provider whose
-quota this plugin can read, and stays hidden for one that publishes none. OpenCode Go is the only source today, so
-selecting a plain `opencode` model hides the panel. Turn the setting off to keep the OpenCode Go quota visible whatever
-model is selected.
+`Current provider only` is on by default. Each quota source is registered on the server under the provider ID the model
+catalog uses, so the panel names no provider itself and follows the model in use: it appears for a provider whose quota
+the plugin can read, and stays hidden for one that publishes none. Turn the setting off to show every quota the plugin
+knows at once. OpenCode Go is the only source today; adding another is a reader and one entry in the registry.
 
 ### Tokens
 

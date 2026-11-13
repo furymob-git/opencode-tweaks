@@ -34,13 +34,6 @@ const PROVIDER_ALIGN = setting("providerAlign")
 const PROVIDER_TAB = setting("providerTab")
 const ONLY_CURRENT = setting("onlyCurrentModel")
 
-/**
- * Providers whose quota this plugin can read. A provider missing here publishes
- * no quota, so the panel hides when the selected model comes from it and the
- * user asked for the current provider only.
- */
-const QUOTA_PROVIDERS = new Set(["opencode-go"])
-
 const FEEDBACK = {
   good: "success",
   warning: "warning",
@@ -49,30 +42,27 @@ const FEEDBACK = {
 
 export function QuotaPanel(props: { readonly context: Context; readonly store: SettingsStore }) {
   const enabled = () => props.store.read(quotaTweak, ENABLED).value === true
-  const onlyCurrent = () => props.store.read(quotaTweak, ONLY_CURRENT).value === true
-
-  // The panel belongs to the model in use: a provider without a quota source
-  // shows nothing rather than an empty box, unless the user wants every quota.
-  const serves = () => {
-    if (!onlyCurrent()) return true
-    const model = props.context.ui.model.current()
-    return !model || QUOTA_PROVIDERS.has(model.providerID)
-  }
 
   return (
-    <Show when={enabled() && serves()}>
+    <Show when={enabled()}>
       <QuotaBody context={props.context} store={props.store} />
     </Show>
   )
 }
 
+/**
+ * Quotas are provider-specific: each one the server knows about comes back as a
+ * snapshot, and a provider it cannot read comes back as nothing. The panel
+ * therefore names no provider itself.
+ */
 function QuotaBody(props: { readonly context: Context; readonly store: SettingsStore }) {
   const theme = () => props.context.theme
   const dimensions = useTerminalDimensions()
-  const [snapshot, setSnapshot] = createSignal<QuotaSnapshot>()
+  const [snapshots, setSnapshots] = createSignal<readonly QuotaSnapshot[]>([])
+  const [error, setError] = createSignal<string>()
   const [now, setNow] = createSignal(Date.now())
   const [panelWidth, setPanelWidth] = createSignal(MAX_ROW_WIDTH)
-  const [collapsed, setCollapsed] = createSignal(false)
+  const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
 
   let root: BoxRenderable | undefined
   let refreshing = false
@@ -94,24 +84,32 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     props.context.renderer.requestRender()
   })
 
+  const onlyCurrent = () => props.store.read(quotaTweak, ONLY_CURRENT).value === true
+
+  /**
+   * The provider whose quota the panel follows. `undefined` asks the server for
+   * every provider it can read, which is what turning the setting off means.
+   */
+  const target = createMemo(() =>
+    onlyCurrent() ? props.context.ui.model.current()?.providerID : undefined,
+  )
+
   async function refresh() {
     if (refreshing || stopped) return
 
     refreshing = true
     try {
-      const result = (await props.context.client.rpc(Quota).snapshot({})) as QuotaSnapshot
-      if (!stopped) setSnapshot(result)
-    } catch (error) {
-      if (!stopped) {
-        // Keep the last good rows so a transient RPC failure does not blank the panel.
-        const previous = snapshot()
-        setSnapshot({
-          provider: previous?.provider ?? "OpenCode Go",
-          capturedAt: Date.now(),
-          windows: previous?.windows ?? [],
-          error: errorText(error),
-        })
-      }
+      const providerID = target()
+      const result = (await props.context.client
+        .rpc(Quota)
+        .snapshot(providerID ? { providerID } : {})) as { snapshots: QuotaSnapshot[] }
+      if (stopped) return
+
+      setSnapshots(result.snapshots ?? [])
+      setError(undefined)
+    } catch (problem) {
+      // Keep the last good panels; the message only shows when nothing loaded.
+      if (!stopped) setError(errorText(problem))
     } finally {
       refreshing = false
     }
@@ -128,8 +126,14 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     await refresh()
     if (stopped) return
 
-    schedule(snapshot()?.error ? RETRY_MS : POLL_MS)
+    schedule(error() ? RETRY_MS : POLL_MS)
   }
+
+  // A different model, or turning the setting, changes which quotas to ask for.
+  createEffect(() => {
+    target()
+    void refresh()
+  })
 
   onMount(() => {
     void cycle()
@@ -153,9 +157,9 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     return "flex-start"
   })
   const inlineProvider = createMemo(() => props.store.read(quotaTweak, PROVIDER_TAB).value === true)
+  const windows = createMemo(() => snapshots().flatMap((snapshot) => snapshot.windows))
   const percentWidth = createMemo(() => {
-    const windows = snapshot()?.windows ?? []
-    const widest = windows.reduce((width, window) => {
+    const widest = windows().reduce((width, window) => {
       const remaining = Math.max(0, Math.min(100, window.percentRemaining))
       const shown = mode() === "used" ? 100 - remaining : remaining
       return Math.max(width, formatPercent(shown).length)
@@ -165,13 +169,12 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
   })
 
   // Pad the reset column to its own content so the widest value keeps no leading gap.
-  const resetWidth = createMemo(() => {
-    const windows = snapshot()?.windows ?? []
-    return windows.reduce(
+  const resetWidth = createMemo(() =>
+    windows().reduce(
       (width, window) => Math.max(width, formatReset(window.resetsAt, now()).length),
       0,
-    )
-  })
+    ),
+  )
 
   const width = createMemo(() => {
     const fixed = LABEL_WIDTH + percentWidth() + 2 + (showReset() ? resetWidth() + 1 : 0)
@@ -180,66 +183,112 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     return typeof value === "number" ? Math.max(1, Math.min(value, auto)) : auto
   })
 
+  function toggle(providerID: string) {
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (next.has(providerID)) {
+        next.delete(providerID)
+      } else {
+        next.add(providerID)
+      }
+      return next
+    })
+  }
+
   return (
     <box
       ref={(renderable) => {
         root = renderable
       }}
       flexDirection="column"
+      gap={1}
     >
-      <box
-        width={panelWidth()}
-        flexDirection="row"
-        onMouseUp={() => setCollapsed((value) => !value)}
-      >
-        <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
-          {collapsed() ? "▶" : "▼"} Quota
+      <For each={snapshots()}>
+        {(snapshot) => (
+          <QuotaSection
+            context={props.context}
+            snapshot={snapshot}
+            panelWidth={panelWidth()}
+            width={width()}
+            percentWidth={percentWidth()}
+            showReset={showReset()}
+            mode={mode()}
+            now={now()}
+            justify={providerJustify()}
+            inlineProvider={inlineProvider()}
+            collapsed={collapsed().has(snapshot.providerID)}
+            onToggle={() => toggle(snapshot.providerID)}
+            onRetry={() => void refresh()}
+          />
+        )}
+      </For>
+      <Show when={snapshots().length === 0 && error()}>
+        <text fg={theme().text.muted} wrapMode="word" onMouseUp={() => void refresh()}>
+          {error()}
         </text>
-        <Show when={inlineProvider() && snapshot()}>
-          <box flexGrow={1} flexDirection="row" justifyContent={providerJustify()}>
+      </Show>
+    </box>
+  )
+}
+
+function QuotaSection(props: {
+  readonly context: Context
+  readonly snapshot: QuotaSnapshot
+  readonly panelWidth: number
+  readonly width: number
+  readonly percentWidth: number
+  readonly showReset: boolean
+  readonly mode: "remaining" | "used"
+  readonly now: number
+  readonly justify: "flex-start" | "center" | "flex-end"
+  readonly inlineProvider: boolean
+  readonly collapsed: boolean
+  readonly onToggle: () => void
+  readonly onRetry: () => void
+}) {
+  const theme = () => props.context.theme
+
+  return (
+    <box flexDirection="column">
+      <box width={props.panelWidth} flexDirection="row" onMouseUp={props.onToggle}>
+        <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
+          {props.collapsed ? "▶" : "▼"} Quota
+        </text>
+        <Show when={props.inlineProvider}>
+          <box flexGrow={1} flexDirection="row" justifyContent={props.justify}>
             <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
-              {providerJustify() === "flex-start"
-                ? ` ${snapshot()?.provider ?? ""}`
-                : snapshot()?.provider}
+              {props.justify === "flex-start"
+                ? ` ${props.snapshot.provider}`
+                : props.snapshot.provider}
             </text>
           </box>
         </Show>
       </box>
-      <Show when={!collapsed()}>
-        <Show
-          when={snapshot()}
-          keyed
-          fallback={<text fg={theme().text.muted}>Loading quota…</text>}
-        >
-          {(data: QuotaSnapshot) => (
-            <>
-              <Show when={!inlineProvider()}>
-                <box width={panelWidth()} flexDirection="row" justifyContent={providerJustify()}>
-                  <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
-                    {data.provider}
-                  </text>
-                </box>
-              </Show>
-              <Show when={data.error && data.windows.length === 0}>
-                <text fg={theme().text.muted} wrapMode="word" onMouseUp={() => void refresh()}>
-                  {data.error}
-                </text>
-              </Show>
-              <For each={data.windows}>
-                {(window) => (
-                  <QuotaRow
-                    window={window}
-                    width={width()}
-                    percentWidth={percentWidth()}
-                    showReset={showReset()}
-                    mode={mode()}
-                    now={now()}
-                  />
-                )}
-              </For>
-            </>
-          )}
+      <Show when={!props.collapsed}>
+        <Show when={!props.inlineProvider}>
+          <box width={props.panelWidth} flexDirection="row" justifyContent={props.justify}>
+            <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
+              {props.snapshot.provider}
+            </text>
+          </box>
         </Show>
+        <Show when={props.snapshot.error && props.snapshot.windows.length === 0}>
+          <text fg={theme().text.muted} wrapMode="word" onMouseUp={props.onRetry}>
+            {props.snapshot.error}
+          </text>
+        </Show>
+        <For each={props.snapshot.windows}>
+          {(window) => (
+            <QuotaRow
+              window={window}
+              width={props.width}
+              percentWidth={props.percentWidth}
+              showReset={props.showReset}
+              mode={props.mode}
+              now={props.now}
+            />
+          )}
+        </For>
       </Show>
     </box>
   )
