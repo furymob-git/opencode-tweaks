@@ -64,6 +64,15 @@ export const tokensTweak = defineTweak({
       labels: ["Auto", "2 digits", "3 digits", "4 digits", "5 digits", "6 digits"],
     },
     {
+      id: "estimateCost",
+      title: "Estimate cost",
+      description:
+        "Guess the cost from the model's list price when the provider reports none. A session that changed model is estimated with the model it ended on.",
+      category: "Scope",
+      kind: "boolean",
+      default: false,
+    },
+    {
       id: "format",
       title: "Format",
       description: "Compact counts such as 12.4K, or every digit.",

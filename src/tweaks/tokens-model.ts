@@ -11,6 +11,7 @@ export interface TokenMessage {
   readonly type: string
   readonly tokens?: MessageTokens
   readonly cost?: number
+  readonly model?: { readonly providerID: string; readonly id: string }
 }
 
 /**
@@ -68,11 +69,71 @@ export function turnTokens(messages: readonly TokenMessage[], mode: TokenCount):
   return sessionTokens(messages.slice(turnStart(messages)), mode)
 }
 
-/** The cost the current turn spent, summed the same way as its tokens. */
-export function turnCost(messages: readonly TokenMessage[]): number {
-  return messages
-    .slice(turnStart(messages))
-    .reduce((total, message) => total + (message.cost ?? 0), 0)
+/** The messages of the current turn, so callers can walk them themselves. */
+export function turnMessages(messages: readonly TokenMessage[]): readonly TokenMessage[] {
+  return messages.slice(turnStart(messages))
+}
+
+/** A model's list price, in dollars per million tokens. */
+export interface ModelPrice {
+  readonly input: number
+  readonly output: number
+  readonly cache: { readonly read: number; readonly write: number }
+  readonly tier?: { readonly size: number }
+}
+
+/**
+ * The price that applies at a context size: the base price, raised by a tier
+ * once the request is large enough. Long-context pricing works this way.
+ */
+export function priceFor(prices: readonly ModelPrice[], context: number): ModelPrice | undefined {
+  let base: ModelPrice | undefined
+  let tiered: ModelPrice | undefined
+
+  for (const price of prices) {
+    const tier = price.tier
+    if (!tier) {
+      base ??= price
+      continue
+    }
+    if (context < tier.size) continue
+    if (!tiered?.tier || tier.size > tiered.tier.size) tiered = price
+  }
+
+  return tiered ?? base ?? prices[0]
+}
+
+/**
+ * The list-price cost of one message's counters. Reasoning is billed at the
+ * output price, as providers do.
+ */
+export function estimateCost(tokens: MessageTokens, price: ModelPrice): number {
+  const { input, output, reasoning, cache } = tokens
+  const total =
+    input * price.input +
+    (output + reasoning) * price.output +
+    cache.read * price.cache.read +
+    cache.write * price.cache.write
+
+  return total / 1_000_000
+}
+
+/** Resolves the list price of one message, if the model is known. */
+export type PriceLookup = (message: TokenMessage) => ModelPrice | undefined
+
+/**
+ * The cost of the current turn: what the provider reported, or the list-price
+ * estimate when it reported nothing and a price is available.
+ */
+export function turnCost(messages: readonly TokenMessage[], price?: PriceLookup): number {
+  return turnMessages(messages).reduce((total, message) => {
+    const reported = message.cost ?? 0
+    if (reported > 0) return total + reported
+    if (!price || !message.tokens) return total + reported
+
+    const value = price(message)
+    return total + (value ? estimateCost(message.tokens, value) : reported)
+  }, 0)
 }
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 })

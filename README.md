@@ -128,6 +128,12 @@ Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost d
 `Auto` keeps two decimals and grows until the first significant digit shows (`$0.004`), while a fixed choice always
 keeps that many (`$0.0042`).
 
+`Estimate cost` fills in a price the provider did not report, using the model's list price from the same catalog
+OpenCode already synced: prompt, completion, reasoning billed as output, and cache traffic, each at its own rate. A
+provider that reports a price always wins, and a session that changed model is estimated with the model it ended on, so
+treat the figure as an estimate. This is what makes the OpenCode Go monthly credit readable: the plan reports `$0.00`
+per turn, and the estimate follows the API rates instead. Costs use the raw counters whatever `Count` says.
+
 ## Development
 
 ```sh

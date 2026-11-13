@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest"
 import {
+  estimateCost,
   formatCost,
   formatTokens,
   type MessageTokens,
+  priceFor,
   sessionTokens,
   type TokenMessage,
   turnCost,
+  turnMessages,
   turnTokens,
 } from "./tokens-model"
 
@@ -102,6 +105,46 @@ describe("turnTokens", () => {
   })
 })
 
+describe("turnMessages", () => {
+  it("keeps only the messages after the last prompt", () => {
+    expect(
+      turnMessages([
+        { type: "user" },
+        { type: "assistant" },
+        { type: "user" },
+        { type: "assistant" },
+      ]),
+    ).toHaveLength(1)
+  })
+})
+
+describe("priceFor", () => {
+  const base = { input: 0.15, output: 0.6, cache: { read: 0.003, write: 0.3 } }
+  const long = { ...base, input: 0.3, tier: { size: 200_000 } }
+
+  it("uses the base price below the tier", () => {
+    expect(priceFor([base, long], 100_000)).toBe(base)
+  })
+
+  it("uses the tier once the context is large enough", () => {
+    expect(priceFor([base, long], 250_000)).toBe(long)
+    expect(priceFor([long, base], 250_000)).toBe(long)
+  })
+
+  it("falls back to the first price when no base exists", () => {
+    expect(priceFor([long], 100_000)).toBe(long)
+  })
+})
+
+describe("estimateCost", () => {
+  const price = { input: 0.15, output: 0.6, cache: { read: 0.003, write: 0.3 } }
+
+  it("prices every counter per million tokens", () => {
+    const tokens = usage(1_000_000, 400_000, 100_000, 1_000_000, 1_000_000)
+    expect(estimateCost(tokens, price)).toBeCloseTo(0.15 + 0.3 + 0.003 + 0.3)
+  })
+})
+
 describe("turnCost", () => {
   it("sums the cost of the assistant messages after the last prompt", () => {
     expect(
@@ -113,6 +156,30 @@ describe("turnCost", () => {
         { type: "assistant", cost: 0.0002 },
       ]),
     ).toBeCloseTo(0.0006)
+  })
+
+  it("estimates only the messages the provider left unpriced", () => {
+    const price = { input: 0.15, output: 0.6, cache: { read: 0, write: 0 } }
+
+    expect(
+      turnCost(
+        [
+          { type: "user" },
+          { type: "assistant", tokens: usage(1_000_000, 0), cost: 0 },
+          { type: "assistant", tokens: usage(1_000_000, 0), cost: 0.5 },
+        ],
+        () => price,
+      ),
+    ).toBeCloseTo(0.65)
+  })
+
+  it("keeps the reported cost when no price is known", () => {
+    expect(
+      turnCost(
+        [{ type: "user" }, { type: "assistant", tokens: usage(10, 1), cost: 0 }],
+        () => undefined,
+      ),
+    ).toBe(0)
   })
 
   it("falls back to the whole session when no prompt is left", () => {
