@@ -16,7 +16,12 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      // OpenTUI draws terminal renderables, not DOM nodes, so mouse handlers
+      // on text and boxes are expected here.
+      "a11y": {
+        "noStaticElementInteractions": "off"
+      }
     }
   },
   "assist": {

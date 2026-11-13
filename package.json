@@ -25,16 +25,19 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./rpc": "./src/rpc.ts",
     "./tui": "./src/tui.tsx"
   },
   "files": [
-    "src"
+    "src",
+    "!src/**/*.test.ts"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check": "npm run typecheck && npm run lint"
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
     "@opencode/plugin": "^2.2.7"
@@ -50,6 +53,7 @@
     "@opentui/solid": "^0.8.4",
     "@types/node": "^24",
     "solid-js": "^1.9.19",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }
