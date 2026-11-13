@@ -92,9 +92,9 @@ Quota shows the OpenCode Go limits for the 5h, 7d, and 30d windows. It uses the 
 there is one, then an `opencode-go` API key. Sign in with `opencode auth login opencode` or
 `opencode auth login opencode-go` before enabling the tweak.
 
-The panel refreshes every two minutes. Click the `Quota` header to collapse or expand the rows. Bar width defaults to
-`auto`, which uses the space the sidebar leaves after the percent and reset columns. A fixed width is available from
-`/tweaks`.
+The panel refreshes every two minutes, and a failed read retries after twenty seconds and keeps the last rows. Click the
+`Quota` header to collapse or expand the rows. Bar width defaults to `auto`, which uses the space the sidebar leaves
+after the percent and reset columns. A fixed width is available from `/tweaks`.
 
 The provider name sits on its own line by default and can be aligned left, center, or right. Enabling
 `One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
