@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { barParts, formatPercent, formatReset, levelOf } from "./format"
+import { barParts, errorText, formatPercent, formatReset, levelOf } from "./format"
 
 const now = Date.UTC(2026, 0, 1, 12, 0, 0)
 
@@ -59,5 +59,29 @@ describe("levelOf", () => {
     expect(levelOf(49)).toBe("warning")
     expect(levelOf(20)).toBe("warning")
     expect(levelOf(19)).toBe("low")
+  })
+})
+
+describe("errorText", () => {
+  it("reads Error instances", () => {
+    expect(errorText(new Error("OpenCode Go is not signed in"))).toBe(
+      "OpenCode Go is not signed in",
+    )
+  })
+
+  it("reads the plain objects the RPC client rejects with", () => {
+    expect(errorText({ type: "internal", message: "RPC method not found" })).toBe(
+      "RPC method not found",
+    )
+  })
+
+  it("never falls back to an object tag", () => {
+    expect(errorText({ type: "internal" })).toBe('{"type":"internal"}')
+    expect(errorText(undefined)).toBe("Unknown error")
+    expect(errorText("boom")).toBe("boom")
+  })
+
+  it("cuts long messages to the panel width", () => {
+    expect(errorText("x".repeat(400))).toHaveLength(160)
   })
 })

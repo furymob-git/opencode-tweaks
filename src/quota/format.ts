@@ -47,3 +47,36 @@ export function levelOf(percentRemaining: number): QuotaLevel {
   if (left < 20) return "low"
   return left < 50 ? "warning" : "good"
 }
+
+function messageOf(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || !("message" in value)) return undefined
+  const message = (value as { message: unknown }).message
+  return typeof message === "string" ? message : undefined
+}
+
+/**
+ * Readable text for anything thrown. The RPC client rejects with plain objects
+ * such as `{ type, message }` rather than `Error` instances, so `String(error)`
+ * would show "[object Object]" in the panel.
+ */
+export function errorText(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : (messageOf(error) ?? (typeof error === "string" ? error : describe(error)))
+
+  return message.trim().slice(0, 160)
+}
+
+function describe(value: unknown): string {
+  if (value === undefined || value === null) return "Unknown error"
+
+  try {
+    const json = JSON.stringify(value)
+    if (typeof json === "string" && json.length > 2) return json
+  } catch {
+    // Fall back to the default string conversion below.
+  }
+
+  return String(value)
+}
