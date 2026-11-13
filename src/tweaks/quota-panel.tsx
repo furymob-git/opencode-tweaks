@@ -16,7 +16,6 @@ import type { TweakSetting } from "./types"
 const MAX_ROW_WIDTH = 38
 const LABEL_WIDTH = 3
 const MIN_PERCENT_WIDTH = 3
-const RESET_WIDTH = 6
 /** A failed read retries quickly, because a plugin reload can drop one call. */
 const POLL_MS = 120_000
 const RETRY_MS = 20_000
@@ -148,8 +147,17 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     return Math.max(MIN_PERCENT_WIDTH, widest)
   })
 
+  // Pad the reset column to its own content so the widest value keeps no leading gap.
+  const resetWidth = createMemo(() => {
+    const windows = snapshot()?.windows ?? []
+    return windows.reduce(
+      (width, window) => Math.max(width, formatReset(window.resetsAt, now()).length),
+      0,
+    )
+  })
+
   const width = createMemo(() => {
-    const fixed = LABEL_WIDTH + percentWidth() + 2 + (showReset() ? RESET_WIDTH + 1 : 0)
+    const fixed = LABEL_WIDTH + percentWidth() + 2 + (showReset() ? resetWidth() + 1 : 0)
     const auto = Math.max(8, Math.min(panelWidth(), MAX_ROW_WIDTH) - fixed)
     const value = props.store.read(quotaTweak, BAR_WIDTH).value
     return typeof value === "number" ? Math.max(1, Math.min(value, auto)) : auto
@@ -250,7 +258,7 @@ function QuotaRow(props: {
       </text>
       <Show when={props.showReset}>
         <text flexShrink={0} fg={theme().text.muted}>
-          {reset().padStart(RESET_WIDTH)}
+          {reset()}
         </text>
       </Show>
     </box>

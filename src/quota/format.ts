@@ -10,9 +10,9 @@ export function formatPercent(value: number): string {
 }
 
 /**
- * The compact reset style from the sidebar: "42m", "4h 12m", "3d", "29d".
- * Minutes stay visible under twelve hours, hours until a day, and whole days
- * above that, so the column never mixes decimals with times.
+ * The compact reset style from the sidebar: "42m", "4h 9m", "2d 23h", "29d 14h".
+ * Minutes stay visible under a day, and days always carry their hours so the
+ * column keeps the same shape.
  */
 export function formatReset(iso: string, now: number): string {
   const time = Date.parse(iso)
@@ -20,14 +20,17 @@ export function formatReset(iso: string, now: number): string {
 
   const minutes = Math.ceil((time - now) / MINUTE)
   if (minutes < 60) return `${minutes}m`
-  if (minutes < 720) {
-    const hours = Math.floor(minutes / 60)
+
+  const totalHours = Math.floor(minutes / 60)
+  const days = Math.floor(totalHours / 24)
+
+  if (days === 0) {
     const rest = minutes % 60
-    return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`
+    return rest === 0 ? `${totalHours}h` : `${totalHours}h ${rest}m`
   }
 
-  const hours = Math.floor(minutes / 60)
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
+  const hours = totalHours % 24
+  return hours === 0 ? `${days}d` : `${days}d ${hours}h`
 }
 
 /** Filled and empty cells for a line bar. The caller colors each part. */
