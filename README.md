@@ -16,7 +16,8 @@ configuration format may change before the first stable release.
 
 ## Principles
 
-- **Opt-in.** A tweak does nothing until you enable it. Defaults remain untouched.
+- **Sensible defaults.** Tweaks are on out of the box, tuned to the setup that works best day to day. Every one has a
+  switch in `/tweaks` when you want OpenCode untouched.
 - **Native first.** If OpenCode already handles something well, this plugin does not replace it.
 - **Public API only.** No forks, patches, or private imports. Everything goes through `@opencode/plugin`.
 - **Small surface.** Each tweak is isolated and documented, so you can see exactly what it changes.
@@ -84,8 +85,8 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 | Tweak    | What it does                                                      | Default |
 | -------- | ----------------------------------------------------------------- | ------- |
-| `quota`  | Provider quota and reset times in the session sidebar.            | Off     |
-| `tokens` | Token and cost usage per turn, plus session totals at the bottom. | Off     |
+| `quota`  | Provider quota, reset times, and a daily spending budget.         | On      |
+| `tokens` | Token and cost usage per turn, plus session totals at the bottom. | On      |
 
 ### Quota
 
@@ -97,14 +98,27 @@ The panel refreshes every two minutes, and a failed read retries after twenty se
 `Quota` header to collapse or expand the rows. Bar width defaults to `auto`, which uses the space the sidebar leaves
 after the percent and reset columns. A fixed width is available from `/tweaks`.
 
-The provider name sits on its own line by default and can be aligned left, center, or right. Enabling
-`One tab per provider` moves it onto the `Quota` line, using the same alignment in the space after the title, with the
-rows collapsing underneath.
+`Percent decimals` chooses 0, 1, or 2 decimals for every percentage, the `day` row included. The Console endpoints
+publish a finer share than a whole percent, so the figures move between points instead of jumping a whole one; a source
+that only reports whole percents shows the same value either way.
+
+The provider name sits on the `Quota` line by default and can be aligned left, center, or right. Turning
+`One tab per provider` off gives it a line of its own, above the rows that collapse underneath.
 
 `Current provider only` is on by default. Each quota source is registered on the server under the provider ID the model
 catalog uses, so the panel names no provider itself and follows the model in use: it appears for a provider whose quota
 the plugin can read, and stays hidden for one that publishes none. Turn the setting off to show every quota the plugin
 knows at once. OpenCode Go is the only source today; adding another is a reader and one entry in the registry.
+
+`Daily budget` adds a `day` row under the longest window: the share of that quota set aside for today, spread over the
+workdays left before it resets. The bar starts full each morning and empties as the provider reports less quota, so you
+see how much of today's share is left. It takes the theme accent color and turns orange near the end, then red once the
+share is spent. The figures are frozen at the first reading of the day, so the bar only moves when quota is used, not
+on every refresh.
+
+`Reserve` keeps a percentage of the window out of the daily budget, so the month does not end at zero. The `Workdays`
+settings choose which weekdays count; every day counts by default, and a day left off gets no budget and shows `rest` on
+the row. The budget resets at local midnight, and a changed provider reset or workday pattern starts a fresh one.
 
 ### Tokens
 
@@ -119,8 +133,8 @@ The line belongs to the turn that finished above it, so each line keeps its own 
 previous line still shows the previous turn's numbers rather than the running one's. When a turn finishes, its line
 receives its figures and the older lines keep theirs.
 
-`First token time` controls the host's own `1.7s ttft` figure at the end of that line: turning it off removes the span
-and leaves `tok/s` in place, and turning it back on restores it.
+`First token time` controls the host's own `1.7s ttft` figure at the end of that line: it is off by default, so the
+span is removed and `tok/s` stays alone. Turning it on restores the host's figure.
 
 `Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
 
@@ -132,9 +146,9 @@ context. OpenCode draws those texts itself and publishes no slot inside them, so
 repaired while the line changes; when the splice is not available the figures stay out of the line rather than
 moving elsewhere.
 
-`Token count` picks what the two numbers add up. `New tokens` is the default: prompt, completion, reasoning, and cache
-writes, without cache reads, because a turn re-reads the whole context at every step and those reads would dwarf
-everything else. `Generated only` keeps just what the model wrote, and `Everything` matches the counters `/stats`
+`Token count` picks what the two numbers add up. `Generated only` is the default: it keeps just what the model wrote.
+`New tokens` adds prompt, completion, reasoning, and cache writes, without cache reads, because a turn re-reads the
+whole context at every step and those reads would dwarf everything else. `Everything` matches the counters `/stats`
 reports, cache reads included. `Include subagents` is on by default, so the session totals cover the whole session tree
 instead of only the session on screen; the per-turn count always stays on the session on screen, because a prompt
 belongs to it. `Token format` switches between compact counts such as `12.4K` and every digit such as `12,431`.

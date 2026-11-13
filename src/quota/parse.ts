@@ -33,16 +33,18 @@ function consoleWindow(
   const used = numeric(value.usedMicroCents)
   if (limit === null || used === null || limit < 0 || used < 0) return undefined
 
-  const percentUsed =
-    limit === 0
-      ? used > 0
-        ? 100
-        : 0
-      : Math.min(100, Math.max(0, Math.round((used / limit) * 100)))
+  const usedShare =
+    limit === 0 ? (used > 0 ? 100 : 0) : Math.min(100, Math.max(0, (used / limit) * 100))
+  const percentUsed = Math.round(usedShare)
   const resetsAt = resetIso(value.resetsAt) ?? resetIso(fallbackReset)
   if (!resetsAt) return undefined
 
-  return { key, percentRemaining: 100 - percentUsed, resetsAt }
+  return {
+    key,
+    percentRemaining: 100 - percentUsed,
+    percentRemainingExact: 100 - usedShare,
+    resetsAt,
+  }
 }
 
 function keyWindow(key: QuotaWindowKey, value: unknown): QuotaWindowSnapshot | undefined {
@@ -54,9 +56,11 @@ function keyWindow(key: QuotaWindowKey, value: unknown): QuotaWindowSnapshot | u
   const resetsAt = resetIso(value.resetsAt)
   if (!resetsAt) return undefined
 
+  const remaining = value.status === "rate-limited" ? 0 : 100 - percent
   return {
     key,
-    percentRemaining: value.status === "rate-limited" ? 0 : 100 - percent,
+    percentRemaining: remaining,
+    percentRemainingExact: remaining,
     resetsAt,
   }
 }

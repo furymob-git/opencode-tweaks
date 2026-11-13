@@ -17,7 +17,7 @@ export const tokensTweak = defineTweak({
       description: "Turn the token and cost counts on.",
       category: "General",
       kind: "boolean",
-      default: false,
+      default: true,
     },
     {
       id: "prompt",
@@ -34,7 +34,7 @@ export const tokensTweak = defineTweak({
       description: "Show that turn's cost after the tok/s figure.",
       category: "Display",
       kind: "boolean",
-      default: false,
+      default: true,
     },
     {
       id: "total",
@@ -50,7 +50,7 @@ export const tokensTweak = defineTweak({
       description: "Show the session's total cost on the bottom status line.",
       category: "Display",
       kind: "boolean",
-      default: false,
+      default: true,
     },
     {
       id: "format",
@@ -79,7 +79,7 @@ export const tokensTweak = defineTweak({
         "Show the host's ttft figure, the wait before the first token, at the end of the throughput line. Turn it off to keep tok/s alone.",
       category: "Display",
       kind: "boolean",
-      default: true,
+      default: false,
     },
     {
       id: "count",
@@ -88,7 +88,7 @@ export const tokensTweak = defineTweak({
         "New tokens leave out cache reads, generated tokens are only what the model wrote, everything matches /stats.",
       category: "Scope",
       kind: "select",
-      default: "new",
+      default: "generated",
       values: ["new", "generated", "all"],
       labels: ["New tokens", "Generated only", "Everything"],
     },
@@ -107,7 +107,7 @@ export const tokensTweak = defineTweak({
         "Guess the cost from the model's list price when the provider reports none. A session that changed model is estimated with the model it ended on.",
       category: "Scope",
       kind: "boolean",
-      default: false,
+      default: true,
     },
   ],
 })
