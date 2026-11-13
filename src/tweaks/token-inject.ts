@@ -43,10 +43,30 @@ type HostNodeConstructor = new (options: {
 
 /** What the host writes before the throughput, and the only thing we can key on. */
 const THROUGHPUT = / \d[\d.]* tok\/s/
+/**
+ * The context usage the host prints on the prompt footer, such as `114.9K
+ * (29%)`. A shell or goal adds a leading separator, the host may append its own
+ * reported cost, and the tweak puts its figures in front, so the text is matched
+ * before the tweak's own node is taken into account.
+ */
+const FOOTER_USAGE = /^(?: · )?\d[\d.,]*\s?[KMG]?\s?\(\d+%\)(?:\s·\s\$[\d.,]+){0,2}$/
 /** The line is rebuilt on every token, so a slow repair would lag behind it. */
 const REPAIR_MS = 400
 const BEFORE_ID = "opencode-tweaks.tokens.before"
 const AFTER_ID = "opencode-tweaks.tokens.after"
+const FOOTER_ID = "opencode-tweaks.tokens.footer"
+
+/**
+ * Hot reload evaluates this module again while the old repair timers keep
+ * running. The registry lets the new copy stop them, even when the old copy
+ * never reached its own dispose.
+ */
+const timers = new Set<ReturnType<typeof setInterval>>()
+const previousTimers = (globalThis as { tokenInjectorTimers?: Set<ReturnType<typeof setInterval>> })
+  .tokenInjectorTimers
+for (const timer of previousTimers ?? []) clearInterval(timer)
+;(globalThis as { tokenInjectorTimers?: Set<ReturnType<typeof setInterval>> }).tokenInjectorTimers =
+  timers
 
 /**
  * A text node is the only renderable with a string-or-node child list, which is
@@ -54,8 +74,19 @@ const AFTER_ID = "opencode-tweaks.tokens.after"
  */
 function isTextNode(value: unknown): value is HostNode {
   const node = value as Partial<HostNode> | null
-  if (!node || !Array.isArray(node.children)) return false
-  return typeof node.add === "function"
+  if (!node || typeof node.add !== "function") return false
+  if (Array.isArray(node.children)) return true
+  const text = node as { getTextChildren?: unknown }
+  return typeof text.getTextChildren === "function"
+}
+
+/** The children of a node, whichever way the host exposes them. */
+function childNodes(node: HostNode): (string | HostNode)[] {
+  const text = node as { getTextChildren?: () => readonly unknown[] }
+  if (typeof text.getTextChildren === "function") {
+    return text.getTextChildren() as (string | HostNode)[]
+  }
+  return Array.isArray(node.children) ? node.children : []
 }
 
 function asHostText(value: unknown): HostText | undefined {
@@ -72,7 +103,7 @@ function asHostText(value: unknown): HostText | undefined {
 function textOf(node: unknown): string {
   if (typeof node === "string") return node
   if (!isTextNode(node)) return ""
-  return node.children.map(textOf).join("")
+  return childNodes(node).map(textOf).join("")
 }
 
 /**
@@ -108,6 +139,59 @@ export function lastThroughputText(node: {
   return throughputTexts(node).at(-1)
 }
 
+/** Every text node under a branch, in tree order. */
+export function hostTexts(node: { getChildren(): readonly unknown[] }): HostText[] {
+  const found: HostText[] = []
+
+  const walk = (branch: { getChildren(): readonly unknown[] }) => {
+    for (const child of branch.getChildren()) {
+      const text = asHostText(child)
+      if (text) {
+        found.push(text)
+        continue
+      }
+
+      const next = child as { getChildren?: unknown }
+      if (typeof next.getChildren === "function") {
+        walk(next as { getChildren(): readonly unknown[] })
+      }
+    }
+  }
+
+  walk(node)
+  return found
+}
+
+/** The host's text without the node the tweak added, for matching. */
+function withoutInjected(text: HostText, node: HostNode | undefined): string {
+  const plain = text.plainText
+  if (!node) return plain
+
+  const value = textOf(node)
+  if (!value) return plain
+  if (plain.startsWith(value)) return plain.slice(value.length)
+  if (plain.endsWith(value)) return plain.slice(0, -value.length)
+  return plain
+}
+
+function isFooterUsage(text: string): boolean {
+  return FOOTER_USAGE.test(text)
+}
+
+/**
+ * The prompt footer's context usage text. It is the only text that carries the
+ * `used (percent)` shape the host prints next to the shell and goal indicators;
+ * the transcript can mention the same words, so the last one wins, which is the
+ * footer the composer draws.
+ */
+export function footerUsageText(node: { getChildren(): readonly unknown[] }): HostText | undefined {
+  let found: HostText | undefined
+  for (const candidate of hostTexts(node)) {
+    if (isFooterUsage(candidate.plainText)) found = candidate
+  }
+  return found
+}
+
 /** The ` · 62.2 tok/s` span the labels are placed around. */
 function throughputSpan(text: HostText): HostNode | undefined {
   for (const child of text.getTextChildren()) {
@@ -126,9 +210,10 @@ function textNodeConstructor(span: HostNode): HostNodeConstructor | undefined {
   while (pending.length > 0) {
     const node = pending.shift()
     if (!node) break
-    for (const child of node.children) {
+    for (const child of childNodes(node)) {
       if (typeof child === "string" || !isTextNode(child)) continue
-      if (child.children.some((item) => typeof item === "string")) {
+      const children = childNodes(child)
+      if (children.some((item) => typeof item === "string")) {
         return child.constructor as HostNodeConstructor
       }
       pending.push(child)
@@ -152,6 +237,12 @@ export interface TokenInjector {
   setLabels(labels: InjectorLabels, key?: string): void
   /** Hides the host's ttft figure on every footer, or brings it back. */
   setTtft(visible: boolean): void
+  /**
+   * The session figures to print on the prompt footer, such as
+   * `649.3K tok total · $0.91`, without the surrounding separators.
+   * `onPlaced` reports whether the host line accepted them.
+   */
+  setFooterFigures(label?: string, onPlaced?: (placed: boolean) => void): void
   /** Drops every figure, including the ones frozen on earlier lines. */
   clear(): void
   dispose(): void
@@ -173,6 +264,11 @@ export function createTokenInjector(context: Context): TokenInjector {
   let activeKey: string | undefined
   /** Whether the host's own ttft figure stays on the line. */
   let ttft = true
+  /** The session figures the prompt footer should carry. */
+  let footerLabel: string | undefined
+  let footerFigures: { text: HostText; node: HostNode } | undefined
+  let footerListener: ((placed: boolean) => void) | undefined
+  let footerReported: boolean | undefined
   const placed = new Map<HostText, Placed>()
   /** The ttft spans taken out of a line, with what followed them. */
   const hidden = new Map<HostText, { node: HostNode; anchor: unknown }>()
@@ -204,6 +300,23 @@ export function createTokenInjector(context: Context): TokenInjector {
     placed.clear()
     active = undefined
     activeKey = undefined
+    releaseFooter()
+  }
+
+  function reportFooter(placed: boolean) {
+    if (footerReported === placed) return
+    footerReported = placed
+    try {
+      footerListener?.(placed)
+    } catch {
+      // A component that unmounted mid-repair must not break the timer.
+    }
+  }
+
+  function releaseFooter() {
+    release(footerFigures?.node)
+    footerFigures = undefined
+    reportFooter(false)
   }
 
   function makeNode(span: HostNode, value: string, id: string): HostNode | undefined {
@@ -216,6 +329,29 @@ export function createTokenInjector(context: Context): TokenInjector {
       fg: span.fg,
       attributes: span.attributes,
     })
+    node.add(value)
+    return node
+  }
+
+  /** A child text node for the host's footer, styled like its parent text. */
+  function makeFooterNode(target: HostText, source: HostText, value: string): HostNode | undefined {
+    let Constructor: HostNodeConstructor | undefined
+    try {
+      Constructor = textNodeConstructor(source as unknown as HostNode)
+    } catch {
+      Constructor = undefined
+    }
+    Constructor ??= source.constructor as HostNodeConstructor | undefined
+    if (!Constructor) return undefined
+    const parent = target as unknown as { fg?: unknown; attributes?: number }
+
+    serial += 1
+    const node = new Constructor({
+      id: `${FOOTER_ID}.${serial}`,
+      fg: parent.fg,
+      attributes: parent.attributes,
+    })
+    if (typeof node?.add !== "function") return undefined
     node.add(value)
     return node
   }
@@ -283,6 +419,83 @@ export function createTokenInjector(context: Context): TokenInjector {
     return true
   }
 
+  /** Keeps a node first among a text's children. */
+  function placeFirst(target: HostText, node: HostNode) {
+    const children = target.getTextChildren()
+    if (children[0] === node) return
+    if (children.includes(node)) target.remove(node)
+    const first = target.getTextChildren()[0]
+    if (first) target.insertBefore(node, first)
+    else target.add?.(node)
+  }
+
+  /**
+   * Keeps the session figures in front of the prompt footer's context usage.
+   * The host draws the shell indicator as a separate text just before it, so
+   * prefixing the usage gives the requested order without touching the shell:
+   *
+   *   `1 shell · 649.3K tok total · $0.91 · 219.6K (56%)`
+   *
+   * The host rebuilds the usage text while a turn runs, so the repair pass puts
+   * the node back when it disappears.
+   */
+  function placeFooterFigures(label: string | undefined) {
+    if (!label) {
+      releaseFooter()
+      return
+    }
+
+    let texts: HostText[]
+    try {
+      texts = hostTexts(context.renderer.root)
+    } catch {
+      releaseFooter()
+      return
+    }
+
+    const previous = footerFigures?.text
+    const previousNode = footerFigures?.node
+    const previousBase =
+      previous && texts.includes(previous) ? withoutInjected(previous, previousNode) : undefined
+
+    let usage: HostText | undefined
+    if (previousBase !== undefined && isFooterUsage(previousBase)) {
+      usage = previous
+    } else {
+      for (const text of texts) {
+        if (isFooterUsage(text.plainText)) usage = text
+      }
+    }
+
+    if (!usage) {
+      releaseFooter()
+      return
+    }
+
+    const leading = withoutInjected(
+      usage,
+      footerFigures?.text === usage ? footerFigures.node : undefined,
+    ).startsWith(" · ")
+    const value = leading ? ` · ${label}` : `${label} · `
+
+    if (footerFigures && footerFigures.text !== usage) releaseFooter()
+
+    try {
+      if (footerFigures) {
+        setText(footerFigures.node, value)
+      } else {
+        const node = makeFooterNode(usage, usage, value)
+        if (!node) return
+        footerFigures = { text: usage, node }
+      }
+
+      placeFirst(usage, footerFigures.node)
+      reportFooter(true)
+    } catch {
+      releaseFooter()
+    }
+  }
+
   /** Writes one footer's values, creating or moving its nodes as needed. */
   function place(text: HostText, values: InjectorLabels) {
     const record = placed.get(text)
@@ -317,6 +530,7 @@ export function createTokenInjector(context: Context): TokenInjector {
   /** Whether anything still needs the repair timer. */
   function pending(): boolean {
     if (!ttft) return true
+    if (footerLabel !== undefined) return true
     if (labels.before || labels.after) return true
     for (const record of placed.values()) {
       if (record.beforeNode || record.afterNode) return true
@@ -377,6 +591,9 @@ export function createTokenInjector(context: Context): TokenInjector {
         hideTtft(texts)
       }
 
+      // The prompt footer is independent of the per-turn throughput lines.
+      placeFooterFigures(footerLabel)
+
       // Forget the footers the host dropped, and the ones it reused for another
       // turn, so no figure ends up on a line it does not belong to.
       for (const [text, record] of placed) {
@@ -435,12 +652,16 @@ export function createTokenInjector(context: Context): TokenInjector {
   }
 
   function start() {
-    if (!timer) timer = setInterval(repair, REPAIR_MS)
+    if (!timer) {
+      timer = setInterval(repair, REPAIR_MS)
+      timers.add(timer)
+    }
   }
 
   function stop() {
     if (!timer) return
     clearInterval(timer)
+    timers.delete(timer)
     timer = undefined
   }
 
@@ -468,18 +689,35 @@ export function createTokenInjector(context: Context): TokenInjector {
       start()
       repair()
     },
+    setFooterFigures(label, onPlaced) {
+      footerLabel = label
+      footerListener = onPlaced
+      footerReported = undefined
+      if (!pending()) {
+        releaseFooter()
+        reportFooter(false)
+        stop()
+        return
+      }
+      start()
+      repair()
+    },
     clear() {
       labels = {}
       key = undefined
+      footerLabel = undefined
       restoreAll()
       detachAll()
+      footerListener = undefined
       stop()
     },
     dispose() {
       labels = {}
       key = undefined
+      footerLabel = undefined
       restoreAll()
       detachAll()
+      footerListener = undefined
       stop()
     },
   }

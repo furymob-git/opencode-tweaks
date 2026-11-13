@@ -1,5 +1,5 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
-import { createEffect, createMemo, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js"
 import type { SettingsStore } from "./settings"
 import type { TokenInjector } from "./token-inject"
 import { tokensTweak } from "./tokens"
@@ -229,6 +229,7 @@ export function TokenStatus(props: {
   readonly context: Context
   readonly input: SlotMap["prompt.footer.status"]
   readonly store: SettingsStore
+  readonly injector: TokenInjector
 }) {
   const counts = useCounts({
     context: props.context,
@@ -236,7 +237,32 @@ export function TokenStatus(props: {
     sessionID: () => props.input.sessionID,
   })
 
-  const label = () => {
+  // The host prints its own shell and subagent indicator before the context
+  // usage, so the figures normally ride on that text. The slot is only a
+  // fallback for a footer with neither of them.
+  const children = createMemo(() => {
+    const sessionID = props.input.sessionID
+    if (!sessionID) return false
+
+    try {
+      const shells = props.context.data.shell
+        .list(props.context.location)
+        .filter(
+          (shell) =>
+            (shell.metadata as { sessionID?: string } | undefined)?.sessionID === sessionID,
+        ).length
+      const sessions = props.context.data.session
+      const subagents = sessions
+        .family(sessionID)
+        .filter((id) => id !== sessionID && sessions.status(id) === "running").length
+      return shells + subagents > 0
+    } catch {
+      // A session the client has not synced yet simply has no indicator.
+      return false
+    }
+  })
+
+  const figures = () => {
     const parts: string[] = []
     const tokens = counts.totalCount()
     if (tokens) parts.push(`${tokens} tok total`)
@@ -245,10 +271,56 @@ export function TokenStatus(props: {
     return parts.length > 0 ? parts.join(" · ") : undefined
   }
 
+  const [placed, setPlaced] = createSignal(false)
+
+  const repaint = () => props.injector.setFooterFigures(figures(), setPlaced)
+
+  createEffect(() => {
+    // Read the host's detail state so the figures follow the usage line when
+    // the host shows or hides it.
+    props.input.showDetails
+    repaint()
+  })
+
+  // The host adds or removes its shell indicator in a render pass of its own,
+  // which rebuilds the usage text and leaves the figures beside a stray
+  // separator for a moment. Repainting right away, then again over the next
+  // frames, keeps the line from settling visibly.
+  let lastPresence: boolean | undefined
+  createEffect(() => {
+    const present = children()
+    if (present === lastPresence) return
+    lastPresence = present
+    // The token counters must not re-run this effect: it would cancel the
+    // follow-up passes every time a figure changes.
+    untrack(repaint)
+    const passes = [16, 50, 150].map((delay) => setTimeout(() => untrack(repaint), delay))
+    onCleanup(() => {
+      for (const pass of passes) clearTimeout(pass)
+    })
+  })
+
+  const [stale, setStale] = createSignal(false)
+
+  createEffect(() => {
+    // A rejected splice is transient while the host redraws the line, so the
+    // slot only takes over after the figures have stayed out for a while.
+    setStale(false)
+    if (placed()) return
+    const timer = setTimeout(() => setStale(true), 500)
+    onCleanup(() => clearTimeout(timer))
+  })
+
+  // The injector owns the real line: it puts the figures after the shell
+  // indicator and before the context usage. The slot is only a last resort
+  // after the splice has stayed unavailable, so nothing flashes to the wrong
+  // side of a shell while the host is still drawing it.
+  const fallback = () => (placed() || !stale() ? undefined : figures())
+
   return (
-    <Show when={label()}>
+    <Show when={fallback()}>
       <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
-        {label()}
+        {fallback()}
       </text>
     </Show>
   )

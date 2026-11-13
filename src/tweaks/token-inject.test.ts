@@ -379,3 +379,163 @@ describe("createTokenInjector and the host's ttft", () => {
     expect(line.children.map(nodeText)).toEqual([" · 62.2 tok/s", " · 1.7s ttft"])
   })
 })
+
+/** The host's context usage text node, with children the injector can append to. */
+class UsageText {
+  children: (string | UsageText)[] = []
+  parent: unknown = null
+  fg?: unknown
+  attributes?: number
+
+  constructor(options: { id?: string; fg?: unknown; attributes?: number } = {}) {
+    this.fg = options.fg
+    this.attributes = options.attributes
+  }
+
+  get plainText(): string {
+    return this.children
+      .map((child) => (typeof child === "string" ? child : child.plainText))
+      .join("")
+  }
+
+  getTextChildren() {
+    return this.children
+  }
+
+  insertBefore(node: UsageText, anchor: UsageText) {
+    const index = this.children.indexOf(anchor)
+    this.children.splice(index === -1 ? this.children.length : index, 0, node)
+    node.parent = this
+    return this.children.length
+  }
+
+  add(child: string | UsageText) {
+    this.children.push(child)
+    if (typeof child !== "string") child.parent = this
+    return this.children.length - 1
+  }
+
+  remove(node: UsageText) {
+    const index = this.children.indexOf(node)
+    if (index !== -1) this.children.splice(index, 1)
+    node.parent = null
+  }
+}
+
+function usageSurface(text = "114.9K (29%)") {
+  const usage = new UsageText({ fg: "muted" })
+  usage.children.push(text)
+  return usage
+}
+
+describe("createTokenInjector and the footer figures", () => {
+  it("appends the cost after the context usage", () => {
+    const usage = usageSurface()
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%)")
+    expect(usage.children).toHaveLength(2)
+
+    injector.dispose()
+    expect(usage.plainText).toBe("114.9K (29%)")
+  })
+
+  it("puts the cost back after the host rebuilds the usage", () => {
+    const usage = usageSurface()
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    usage.children = ["114.9K (29%)"]
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%)")
+    expect(usage.children).toHaveLength(2)
+    injector.dispose()
+  })
+
+  it("updates the cost without adding a second node", () => {
+    const usage = usageSurface()
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    injector.setFooterFigures("650.1K tok total · $1.24")
+    expect(usage.plainText).toBe("650.1K tok total · $1.24 · 114.9K (29%)")
+    expect(usage.children).toHaveLength(2)
+    injector.dispose()
+  })
+
+  it("keeps the host's own cost and adds the tweak's after it", () => {
+    const usage = usageSurface("114.9K (29%) · $0.05")
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%) · $0.05")
+    injector.dispose()
+  })
+
+  it("leaves text that only mentions the usage alone", () => {
+    const usage = usageSurface("the context is 114.9K (29%) now")
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(usage.plainText).toBe("the context is 114.9K (29%) now")
+    injector.dispose()
+  })
+
+  it("puts the figures before the context while a shell stays on the left", () => {
+    const shell = usageSurface("1 shell")
+    const usage = usageSurface(" · 114.9K (29%)")
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [shell, usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(shell.plainText).toBe("1 shell")
+    expect(usage.plainText).toBe(" · 649.3K tok total · $0.91 · 114.9K (29%)")
+    injector.dispose()
+  })
+
+  it("keeps the figures in front of the context when the shell stops", () => {
+    const shell = usageSurface("1 shell")
+    const usage = usageSurface(" · 114.9K (29%)")
+    const root = { getChildren: (): unknown[] => [shell, usage] }
+    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    usage.children = ["114.9K (29%)"]
+    root.getChildren = () => [usage]
+    injector.setFooterFigures("649.3K tok total · $0.91")
+
+    expect(shell.plainText).toBe("1 shell")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%)")
+    injector.dispose()
+  })
+
+  it("handles the spans the host nests inside the usage text", () => {
+    const shell = usageSurface("⌘ 1 shell")
+    const usage = new UsageText()
+    const empty = new UsageText()
+    const leaf = new UsageText()
+    leaf.children.push("219.6K (56%)")
+    usage.children.push(empty, leaf)
+    const injector = createTokenInjector({
+      renderer: { root: { getChildren: () => [shell, usage] } },
+    } as unknown as Context)
+
+    injector.setFooterFigures("649.3K tok total · $0.91")
+    expect(shell.plainText).toBe("⌘ 1 shell")
+    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 219.6K (56%)")
+    injector.dispose()
+  })
+})

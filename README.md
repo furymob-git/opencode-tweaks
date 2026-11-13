@@ -124,9 +124,13 @@ and leaves `tok/s` in place, and turning it back on restores it.
 
 `Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
 
-`Session tokens` adds the session's total usage to the bottom status line, next to the context percentage:
-`790.6K tok total`. It reads the counters the session itself keeps, so the number stays exact even when the transcript
-has only loaded its latest messages. `Session cost` follows it on the same line: `790.6K tok total · $0.31`.
+`Session tokens` adds the session's total usage to the bottom status line, before the host's context figure:
+`1 shell · 790.6K tok total · $0.91 · 115K (29%)`. It reads the counters the session itself keeps, so
+the number stays exact even when the transcript has only loaded its latest messages. The figures follow the shell
+indicator when one is running and otherwise open the context text, so the order stays shell, total, session cost,
+context. OpenCode draws those texts itself and publishes no slot inside them, so the figures are spliced in and
+repaired while the line changes; when the splice is not available the figures stay out of the line rather than
+moving elsewhere.
 
 `Token count` picks what the two numbers add up. `New tokens` is the default: prompt, completion, reasoning, and cache
 writes, without cache reads, because a turn re-reads the whole context at every step and those reads would dwarf

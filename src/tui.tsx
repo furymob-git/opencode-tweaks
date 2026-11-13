@@ -26,7 +26,9 @@ export default Plugin.define({
 
     context.ui.slot({
       after: "prompt.footer.status",
-      render: (input) => <TokenStatus context={context} input={input} store={store} />,
+      render: (input) => (
+        <TokenStatus context={context} input={input} store={store} injector={tokens} />
+      ),
     })
 
     context.keymap.layer(() => ({
