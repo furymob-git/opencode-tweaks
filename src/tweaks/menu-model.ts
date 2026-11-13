@@ -44,3 +44,12 @@ export function moveRow<Row extends MenuRow>(
 
   return rows[(index + delta + rows.length) % rows.length]
 }
+
+/**
+ * The order the menu draws rows in: grouped by category, headers left out.
+ * Navigation must follow this order, not the order the settings were defined
+ * in, or the selection appears to skip rows.
+ */
+export function orderedRows<Row extends MenuRow>(rows: readonly Row[]): Row[] {
+  return groupRows(rows).flatMap(([, group]) => group)
+}

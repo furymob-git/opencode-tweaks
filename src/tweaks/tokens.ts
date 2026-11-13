@@ -64,6 +64,15 @@ export const tokensTweak = defineTweak({
       labels: ["Auto", "2 digits", "3 digits", "4 digits", "5 digits", "6 digits"],
     },
     {
+      id: "format",
+      title: "Format",
+      description: "Compact counts such as 12.4K, or every digit.",
+      category: "Display",
+      kind: "select",
+      default: "compact",
+      values: ["compact", "exact"],
+    },
+    {
       id: "subagents",
       title: "Include subagents",
       description: "Add the tokens used by subagents to the session total.",
@@ -81,15 +90,6 @@ export const tokensTweak = defineTweak({
       default: "new",
       values: ["new", "generated", "all"],
       labels: ["New tokens", "Generated only", "Everything"],
-    },
-    {
-      id: "format",
-      title: "Format",
-      description: "Compact counts such as 12.4K, or every digit.",
-      category: "Display",
-      kind: "select",
-      default: "compact",
-      values: ["compact", "exact"],
     },
   ],
 })
