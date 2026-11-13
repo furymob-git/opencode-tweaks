@@ -502,7 +502,7 @@ describe("createTokenInjector and the footer figures", () => {
 
     injector.setFooterFigures("649.3K tok total · $0.91")
     expect(shell.plainText).toBe("1 shell")
-    expect(usage.plainText).toBe("649.3K tok total · $0.91 · 114.9K (29%)")
+    expect(usage.plainText).toBe(" · 649.3K tok total · $0.91 · 114.9K (29%)")
     injector.dispose()
   })
 
