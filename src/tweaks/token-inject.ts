@@ -43,10 +43,17 @@ type HostNodeConstructor = new (options: {
 
 /** What the host writes before the throughput, and the only thing we can key on. */
 const THROUGHPUT = / \d[\d.]* tok\/s/
+/**
+ * The context usage the host prints on the prompt footer, such as `114.9K
+ * (29%)`. The host may append its own reported cost, and the tweak appends
+ * another one, so up to two dollar amounts are allowed.
+ */
+const FOOTER_USAGE = /^\d[\d.,]*\s?[KMG]?\s?\(\d+%\)(?:\s·\s\$[\d.,]+){0,2}$/
 /** The line is rebuilt on every token, so a slow repair would lag behind it. */
 const REPAIR_MS = 400
 const BEFORE_ID = "opencode-tweaks.tokens.before"
 const AFTER_ID = "opencode-tweaks.tokens.after"
+const FOOTER_ID = "opencode-tweaks.tokens.footer"
 
 /**
  * A text node is the only renderable with a string-or-node child list, which is
@@ -108,6 +115,34 @@ export function lastThroughputText(node: {
   return throughputTexts(node).at(-1)
 }
 
+/**
+ * The prompt footer's context usage text. It is the only text that carries the
+ * `used (percent)` shape the host prints next to the shell and goal indicators;
+ * the transcript can mention the same words, so the last one wins, which is the
+ * footer the composer draws.
+ */
+export function footerUsageText(node: { getChildren(): readonly unknown[] }): HostText | undefined {
+  let found: HostText | undefined
+
+  const walk = (branch: { getChildren(): readonly unknown[] }) => {
+    for (const child of branch.getChildren()) {
+      const text = asHostText(child)
+      if (text) {
+        if (FOOTER_USAGE.test(text.plainText)) found = text
+        continue
+      }
+
+      const next = child as { getChildren?: unknown }
+      if (typeof next.getChildren === "function") {
+        walk(next as { getChildren(): readonly unknown[] })
+      }
+    }
+  }
+
+  walk(node)
+  return found
+}
+
 /** The ` · 62.2 tok/s` span the labels are placed around. */
 function throughputSpan(text: HostText): HostNode | undefined {
   for (const child of text.getTextChildren()) {
@@ -152,6 +187,11 @@ export interface TokenInjector {
   setLabels(labels: InjectorLabels, key?: string): void
   /** Hides the host's ttft figure on every footer, or brings it back. */
   setTtft(visible: boolean): void
+  /**
+   * The session cost to print after the host's context usage, such as
+   * ` · $0.91`. Undefined removes it.
+   */
+  setFooterCost(label?: string): void
   /** Drops every figure, including the ones frozen on earlier lines. */
   clear(): void
   dispose(): void
@@ -173,6 +213,9 @@ export function createTokenInjector(context: Context): TokenInjector {
   let activeKey: string | undefined
   /** Whether the host's own ttft figure stays on the line. */
   let ttft = true
+  /** The session cost the prompt footer should carry after its context usage. */
+  let footerCostLabel: string | undefined
+  let footerCost: { text: HostText; node: HostNode } | undefined
   const placed = new Map<HostText, Placed>()
   /** The ttft spans taken out of a line, with what followed them. */
   const hidden = new Map<HostText, { node: HostNode; anchor: unknown }>()
@@ -204,6 +247,12 @@ export function createTokenInjector(context: Context): TokenInjector {
     placed.clear()
     active = undefined
     activeKey = undefined
+    releaseFooter()
+  }
+
+  function releaseFooter() {
+    release(footerCost?.node)
+    footerCost = undefined
   }
 
   function makeNode(span: HostNode, value: string, id: string): HostNode | undefined {
@@ -216,6 +265,23 @@ export function createTokenInjector(context: Context): TokenInjector {
       fg: span.fg,
       attributes: span.attributes,
     })
+    node.add(value)
+    return node
+  }
+
+  /** A child text node for the host's usage text, styled like its parent. */
+  function makeFooterNode(usage: HostText, value: string): HostNode | undefined {
+    const Constructor = usage.constructor as HostNodeConstructor | undefined
+    if (typeof Constructor !== "function") return undefined
+    const parent = usage as unknown as { fg?: unknown; attributes?: number }
+
+    serial += 1
+    const node = new Constructor({
+      id: `${FOOTER_ID}.${serial}`,
+      fg: parent.fg,
+      attributes: parent.attributes,
+    })
+    if (typeof node?.add !== "function") return undefined
     node.add(value)
     return node
   }
@@ -283,6 +349,48 @@ export function createTokenInjector(context: Context): TokenInjector {
     return true
   }
 
+  /**
+   * Keeps the session cost on the host's context usage text, after the context
+   * and before the shortcut hints. The host rebuilds that text on every token,
+   * so the repair pass puts the node back when it disappears.
+   */
+  function placeFooterCost(label: string | undefined) {
+    if (!label) {
+      releaseFooter()
+      return
+    }
+
+    let usage: HostText | undefined
+    try {
+      usage = footerUsageText(context.renderer.root)
+    } catch {
+      releaseFooter()
+      return
+    }
+    if (!usage) {
+      releaseFooter()
+      return
+    }
+    if (footerCost && footerCost.text !== usage) releaseFooter()
+
+    if (footerCost) {
+      setText(footerCost.node, label)
+    } else {
+      const node = makeFooterNode(usage, label)
+      if (!node) return
+      footerCost = { text: usage, node }
+    }
+
+    const children = usage.getTextChildren()
+    if (children.at(-1) === footerCost.node) return
+    if (children.includes(footerCost.node)) usage.remove(footerCost.node)
+    if (typeof usage.add === "function") {
+      usage.add(footerCost.node)
+    } else {
+      releaseFooter()
+    }
+  }
+
   /** Writes one footer's values, creating or moving its nodes as needed. */
   function place(text: HostText, values: InjectorLabels) {
     const record = placed.get(text)
@@ -317,6 +425,7 @@ export function createTokenInjector(context: Context): TokenInjector {
   /** Whether anything still needs the repair timer. */
   function pending(): boolean {
     if (!ttft) return true
+    if (footerCostLabel !== undefined) return true
     if (labels.before || labels.after) return true
     for (const record of placed.values()) {
       if (record.beforeNode || record.afterNode) return true
@@ -376,6 +485,9 @@ export function createTokenInjector(context: Context): TokenInjector {
       } else {
         hideTtft(texts)
       }
+
+      // The prompt footer is independent of the per-turn throughput lines.
+      placeFooterCost(footerCostLabel)
 
       // Forget the footers the host dropped, and the ones it reused for another
       // turn, so no figure ends up on a line it does not belong to.
@@ -468,9 +580,20 @@ export function createTokenInjector(context: Context): TokenInjector {
       start()
       repair()
     },
+    setFooterCost(label) {
+      footerCostLabel = label
+      if (!pending()) {
+        releaseFooter()
+        stop()
+        return
+      }
+      start()
+      repair()
+    },
     clear() {
       labels = {}
       key = undefined
+      footerCostLabel = undefined
       restoreAll()
       detachAll()
       stop()
@@ -478,6 +601,7 @@ export function createTokenInjector(context: Context): TokenInjector {
     dispose() {
       labels = {}
       key = undefined
+      footerCostLabel = undefined
       restoreAll()
       detachAll()
       stop()

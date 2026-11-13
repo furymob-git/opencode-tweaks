@@ -229,6 +229,7 @@ export function TokenStatus(props: {
   readonly context: Context
   readonly input: SlotMap["prompt.footer.status"]
   readonly store: SettingsStore
+  readonly injector: TokenInjector
 }) {
   const counts = useCounts({
     context: props.context,
@@ -236,18 +237,49 @@ export function TokenStatus(props: {
     sessionID: () => props.input.sessionID,
   })
 
+  // The host prints its own shell and subagent indicator before the context
+  // usage. Knowing whether one is on screen lets the total keep its separator
+  // only when something follows it.
+  const children = createMemo(() => {
+    const sessionID = props.input.sessionID
+    if (!sessionID) return false
+
+    try {
+      const shells = props.context.data.shell
+        .list(props.context.location)
+        .filter(
+          (shell) =>
+            (shell.metadata as { sessionID?: string } | undefined)?.sessionID === sessionID,
+        ).length
+      const sessions = props.context.data.session
+      const subagents = sessions
+        .family(sessionID)
+        .filter((id) => id !== sessionID && sessions.status(id) === "running").length
+      return shells + subagents > 0
+    } catch {
+      // A session the client has not synced yet simply has no indicator.
+      return false
+    }
+  })
+
   const label = () => {
-    const parts: string[] = []
     const tokens = counts.totalCount()
-    if (tokens) parts.push(`${tokens} tok total`)
-    const cost = counts.totalCostLabel()
-    if (cost) parts.push(cost)
-    return parts.length > 0 ? parts.join(" · ") : undefined
+    if (!tokens) return undefined
+    return props.input.showDetails || children() ? `${tokens} tok total ·` : `${tokens} tok total`
   }
+
+  createEffect(() => {
+    // Read the host's detail state so the cost follows the usage line when the
+    // host shows or hides it.
+    props.input.showDetails
+    children()
+    const cost = counts.totalCostLabel()
+    props.injector.setFooterCost(cost ? ` · ${cost}` : undefined)
+  })
 
   return (
     <Show when={label()}>
-      <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
+      <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0} marginRight={-1}>
         {label()}
       </text>
     </Show>
