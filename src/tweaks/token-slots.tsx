@@ -1,5 +1,5 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
-import { createEffect, createMemo, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, Show } from "solid-js"
 import type { SettingsStore } from "./settings"
 import type { TokenInjector } from "./token-inject"
 import { tokensTweak } from "./tokens"
@@ -271,18 +271,20 @@ export function TokenStatus(props: {
     return parts.length > 0 ? parts.join(" · ") : undefined
   }
 
+  const [placed, setPlaced] = createSignal(false)
+
   createEffect(() => {
     // Read the host's detail state so the figures follow the usage line when
     // the host shows or hides it.
     props.input.showDetails
     children()
-    props.injector.setFooterFigures(figures())
+    props.injector.setFooterFigures(figures(), setPlaced)
   })
 
   // The injector owns the real line: it puts the figures after the shell
-  // indicator and before the context usage. This slot only covers the case
-  // where the host draws neither.
-  const fallback = () => (props.input.showDetails || children() ? undefined : figures())
+  // indicator and before the context usage. The slot is a safety net for a
+  // footer that rejected the splice, so the figures never disappear.
+  const fallback = () => (placed() ? undefined : figures())
 
   return (
     <Show when={fallback()}>
