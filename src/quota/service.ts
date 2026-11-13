@@ -1,5 +1,5 @@
 import type { Plugin } from "@opencode/plugin"
-import type { QuotaSnapshot } from "../rpc"
+import type { QuotaSnapshot, QuotaWindowSnapshot } from "../rpc"
 import { errorText } from "./format"
 import { consoleWindows, isRecord, keyWindows, text } from "./parse"
 
@@ -148,21 +148,77 @@ async function readKey(auth: KeyAuth, signal: AbortSignal) {
 }
 
 /** Reads the active OpenCode Go quota and always returns a snapshot, including failures. */
-export async function readQuota(
+async function readGo(
   context: Plugin.Context,
+  signal: AbortSignal,
+): Promise<QuotaWindowSnapshot[]> {
+  const auth = await readAuth(context)
+  if (!auth) throw new Error("OpenCode Go is not signed in")
+
+  return withTimeout(signal, (requestSignal) =>
+    auth.kind === "console" ? readConsole(auth, requestSignal) : readKey(auth, requestSignal),
+  )
+}
+
+interface QuotaSource {
+  /** Display name, and the credential the source knows how to read. */
+  readonly name: string
+  read(context: Plugin.Context, signal: AbortSignal): Promise<QuotaWindowSnapshot[]>
+}
+
+/**
+ * Providers whose quota this plugin can read, keyed by the model catalog ID so
+ * the TUI never names a provider. Adding one is a reader plus an entry here.
+ * Providers missing from the map publish no quota, and the panel stays hidden
+ * for them instead of showing an empty box.
+ */
+const SOURCES: Readonly<Record<string, QuotaSource>> = {
+  "opencode-go": { name: PROVIDER, read: readGo },
+}
+
+/** The provider IDs this plugin can read a quota for. */
+export function supportedProviders(): readonly string[] {
+  return Object.keys(SOURCES)
+}
+
+/**
+ * Reads one provider's quota, or every provider that has a source when no ID is
+ * given. Unknown IDs are skipped so an unsupported provider renders nothing.
+ */
+export async function readQuotas(
+  context: Plugin.Context,
+  providerID: string | undefined,
+  signal: AbortSignal,
+): Promise<QuotaSnapshot[]> {
+  const ids = providerID ? [providerID] : supportedProviders()
+  const snapshots: QuotaSnapshot[] = []
+
+  for (const id of ids) {
+    const source = SOURCES[id]
+    if (source) snapshots.push(await readSource(context, id, source, signal))
+  }
+
+  return snapshots
+}
+
+async function readSource(
+  context: Plugin.Context,
+  providerID: string,
+  source: QuotaSource,
   signal: AbortSignal,
 ): Promise<QuotaSnapshot> {
   try {
-    const auth = await readAuth(context)
-    if (!auth) throw new Error("OpenCode Go is not signed in")
+    const windows = await source.read(context, signal)
+    if (windows.length === 0) throw new Error(`${source.name} returned no quota windows`)
 
-    const windows = await withTimeout(signal, (requestSignal) =>
-      auth.kind === "console" ? readConsole(auth, requestSignal) : readKey(auth, requestSignal),
-    )
-    if (windows.length === 0) throw new Error("OpenCode Go returned no quota windows")
-
-    return { provider: PROVIDER, capturedAt: Date.now(), windows }
+    return { providerID, provider: source.name, capturedAt: Date.now(), windows }
   } catch (error) {
-    return { provider: PROVIDER, capturedAt: Date.now(), windows: [], error: errorText(error) }
+    return {
+      providerID,
+      provider: source.name,
+      capturedAt: Date.now(),
+      windows: [],
+      error: errorText(error),
+    }
   }
 }

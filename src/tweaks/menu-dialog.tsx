@@ -3,7 +3,7 @@ import type { Context } from "@opencode/plugin/tui/context"
 import { CliRenderEvents, type ScrollBoxRenderable, TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
-import { filterRows, groupRows, type MenuRow, moveRow } from "./menu-model"
+import { filterRows, groupRows, type MenuRow, moveRow, orderedRows } from "./menu-model"
 import { tweaks } from "./registry"
 import type { SettingsStore } from "./settings"
 import { displayValue, nextValue, type Tweak, type TweakSetting } from "./types"
@@ -161,7 +161,8 @@ function TweaksDialog(props: DialogProps) {
     return result
   })
 
-  const selected = createMemo(() => visible().find((row) => row.id === selectedID()))
+  const ordered = createMemo(() => orderedRows(visible()))
+  const selected = createMemo(() => ordered().find((row) => row.id === selectedID()))
   const title = createMemo(() => {
     const current = view()
     return current.kind === "tweaks" ? "Tweaks" : current.tweak.title
@@ -169,7 +170,7 @@ function TweaksDialog(props: DialogProps) {
   const height = createMemo(() => Math.max(3, Math.floor(dimensions().height / 2) - 6))
 
   function move(delta: number) {
-    const next = moveRow(visible(), selectedID(), delta)
+    const next = moveRow(ordered(), selectedID(), delta)
     if (next) setSelectedID(next.id)
   }
 
@@ -189,12 +190,12 @@ function TweaksDialog(props: DialogProps) {
 
   function updateFilter(value: string) {
     setFilter(value)
-    setSelectedID(filterRows(rows(), value)[0]?.id)
+    setSelectedID(orderedRows(filterRows(rows(), value))[0]?.id)
   }
 
   // Keep a valid selection when the filter changes the list.
   createEffect(() => {
-    const list = visible()
+    const list = ordered()
     if (list.length === 0) {
       if (selectedID() !== undefined) setSelectedID(undefined)
       return

@@ -65,7 +65,8 @@ export const quotaTweak = defineTweak({
     {
       id: "onlyCurrentModel",
       title: "Current provider only",
-      description: "Hide providers that do not serve the selected model.",
+      description:
+        "Follow the selected model and hide quotas from other providers. Turn it off to show every quota the plugin can read.",
       category: "Provider",
       kind: "boolean",
       default: true,
