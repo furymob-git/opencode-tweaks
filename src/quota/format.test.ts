@@ -19,6 +19,14 @@ describe("formatPercent", () => {
     expect(formatPercent(-4)).toBe("0%")
     expect(formatPercent(120)).toBe("100%")
   })
+
+  it("keeps the chosen number of decimals", () => {
+    expect(formatPercent(96.34, 0)).toBe("96%")
+    expect(formatPercent(96.34, 1)).toBe("96.3%")
+    expect(formatPercent(96.34, 2)).toBe("96.34%")
+    expect(formatPercent(100, 1)).toBe("100.0%")
+    expect(formatPercent(0, 2)).toBe("0.00%")
+  })
 })
 
 describe("formatReset", () => {

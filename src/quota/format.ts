@@ -2,9 +2,21 @@ export type QuotaLevel = "good" | "warning" | "low"
 
 const MINUTE = 60_000
 
-/** One decimal only when the percent has one: "98%", "99.2%". */
-export function formatPercent(value: number): string {
+/**
+ * One decimal only when the percent has one: "98%", "99.2%". Passing
+ * `decimals` keeps that many instead, so the column can show the finer share a
+ * provider publishes.
+ */
+export function formatPercent(value: number, decimals?: number): string {
   const clamped = Math.max(0, Math.min(100, value))
+
+  if (decimals !== undefined) {
+    const fixed = Math.max(0, Math.min(2, Math.round(decimals)))
+    if (fixed === 0) return `${Math.round(clamped)}%`
+    const factor = 10 ** fixed
+    return `${(Math.round(clamped * factor) / factor).toFixed(fixed)}%`
+  }
+
   const rounded = Math.round(clamped * 10) / 10
   return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`
 }

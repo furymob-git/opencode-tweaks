@@ -98,6 +98,10 @@ The panel refreshes every two minutes, and a failed read retries after twenty se
 `Quota` header to collapse or expand the rows. Bar width defaults to `auto`, which uses the space the sidebar leaves
 after the percent and reset columns. A fixed width is available from `/tweaks`.
 
+`Percent decimals` chooses 0, 1, or 2 decimals for every percentage, the `day` row included. The Console endpoints
+publish a finer share than a whole percent, so the figures move between points instead of jumping a whole one; a source
+that only reports whole percents shows the same value either way.
+
 The provider name sits on the `Quota` line by default and can be aligned left, center, or right. Turning
 `One tab per provider` off gives it a line of its own, above the rows that collapse underneath.
 
