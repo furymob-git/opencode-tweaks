@@ -1,5 +1,6 @@
 import type { Plugin } from "@opencode/plugin"
 import type { QuotaSnapshot } from "../rpc"
+import { errorText } from "./format"
 import { consoleWindows, isRecord, keyWindows, text } from "./parse"
 
 const PROVIDER = "OpenCode Go"
@@ -27,11 +28,6 @@ type Connection = NonNullable<
 type Credential = NonNullable<
   Awaited<ReturnType<Plugin.Context["integration"]["connection"]["resolve"]>>
 >
-
-function errorText(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.slice(0, 160)
-}
 
 async function activeConnection(
   context: Plugin.Context,

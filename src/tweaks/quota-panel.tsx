@@ -3,7 +3,7 @@ import type { Context } from "@opencode/plugin/tui/context"
 import { type BoxRenderable, CliRenderEvents, TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
-import { barParts, formatPercent, formatReset, levelOf } from "../quota/format"
+import { barParts, errorText, formatPercent, formatReset, levelOf } from "../quota/format"
 import { Quota, type QuotaSnapshot, type QuotaWindowSnapshot } from "../rpc"
 import { quotaTweak } from "./quota"
 import type { SettingsStore } from "./settings"
@@ -17,6 +17,9 @@ const MAX_ROW_WIDTH = 38
 const LABEL_WIDTH = 3
 const MIN_PERCENT_WIDTH = 3
 const RESET_WIDTH = 6
+/** A failed read retries quickly, because a plugin reload can drop one call. */
+const POLL_MS = 120_000
+const RETRY_MS = 20_000
 
 function setting(id: string): TweakSetting {
   const found = quotaTweak.settings.find((item) => item.id === id)
@@ -58,7 +61,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
   let root: BoxRenderable | undefined
   let refreshing = false
   let stopped = false
-  let poll: ReturnType<typeof setInterval> | undefined
+  let poll: ReturnType<typeof setTimeout> | undefined
   let tick: ReturnType<typeof setInterval> | undefined
 
   // The slot does not publish its width, so measure the rendered panel after layout.
@@ -84,11 +87,13 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
       if (!stopped) setSnapshot(result)
     } catch (error) {
       if (!stopped) {
+        // Keep the last good rows so a transient RPC failure does not blank the panel.
+        const previous = snapshot()
         setSnapshot({
-          provider: "OpenCode Go",
+          provider: previous?.provider ?? "OpenCode Go",
           capturedAt: Date.now(),
-          windows: [],
-          error: (error instanceof Error ? error.message : String(error)).slice(0, 160),
+          windows: previous?.windows ?? [],
+          error: errorText(error),
         })
       }
     } finally {
@@ -96,15 +101,28 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     }
   }
 
+  function schedule(delay: number) {
+    if (poll) clearTimeout(poll)
+    poll = setTimeout(() => void cycle(), delay)
+  }
+
+  async function cycle() {
+    if (stopped) return
+
+    await refresh()
+    if (stopped) return
+
+    schedule(snapshot()?.error ? RETRY_MS : POLL_MS)
+  }
+
   onMount(() => {
-    void refresh()
-    poll = setInterval(() => void refresh(), 120_000)
+    void cycle()
     tick = setInterval(() => setNow(Date.now()), 30_000)
   })
 
   onCleanup(() => {
     stopped = true
-    if (poll) clearInterval(poll)
+    if (poll) clearTimeout(poll)
     if (tick) clearInterval(tick)
   })
 
@@ -178,7 +196,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
                 </box>
               </Show>
               <Show when={data.error && data.windows.length === 0}>
-                <text fg={theme().text.muted} wrapMode="word">
+                <text fg={theme().text.muted} wrapMode="word" onMouseUp={() => void refresh()}>
                   {data.error}
                 </text>
               </Show>
