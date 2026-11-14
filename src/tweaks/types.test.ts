@@ -293,7 +293,7 @@ describe("modelTweak", () => {
       output: true,
       cache: true,
       peak: true,
-      peakOnly: true,
+      peakOnly: false,
       align: "left",
     })
   })
