@@ -126,3 +126,7 @@ Releases are cut from `main`:
 4. tag `vX.Y.Z` and push the tag
 
 Versions follow semver. A tweak that changes an existing default is a breaking change.
+
+Pushing the tag starts `.github/workflows/publish.yml`, which runs the checks and publishes to npm. The workflow uses
+trusted publishing: it authenticates through GitHub OIDC and needs no npm token. The repository must stay registered as
+a trusted publisher for the package on npmjs.com, and the publish permission must stay allowed there.
