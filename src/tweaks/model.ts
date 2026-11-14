@@ -63,10 +63,10 @@ export const modelTweak = defineTweak({
     {
       id: "peakOnly",
       title: "Peak only",
-      description: "Hide the multiplier while the model bills at its base price.",
+      description: "Hide the off-peak marker and show the state only during a peak window.",
       category: "Display",
       kind: "boolean",
-      default: true,
+      default: false,
     },
   ],
 })

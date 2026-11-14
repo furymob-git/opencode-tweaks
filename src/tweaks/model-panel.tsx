@@ -132,14 +132,11 @@ function ModelBody(props: {
     return priceWindowFor(ref, new Date(now()))
   }
 
-  /** The higher price the provider charges right now, or base price as `1`. */
-  const multiplier = () => peak()?.multiplier ?? 1
-
   const state = () => {
     if (!peakOn() || !scheduled()) return undefined
-    const value = multiplier()
-    if (value === 1 && peakOnly()) return undefined
-    return `×${value}`
+    const value = peak()
+    if (!value) return peakOnly() ? undefined : "off-peak ×1"
+    return `peak ×${value.multiplier}`
   }
 
   // The live peak marker follows the clock, so refresh it while the card can
@@ -154,17 +151,22 @@ function ModelBody(props: {
 
   return (
     <box flexDirection="column">
-      <box flexDirection="row" onMouseUp={() => setCollapsed((value) => !value)}>
+      <box
+        flexDirection="row"
+        justifyContent="space-between"
+        onMouseUp={() => setCollapsed((value) => !value)}
+      >
         <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
           {collapsed() ? "▶" : "▼"} Model
-          <span
-            style={{
-              fg: multiplier() > 1 ? theme().text.feedback.warning.base : theme().text.muted,
-            }}
-          >
-            {state() ? ` ${state()}` : ""}
-          </span>
         </text>
+        <Show when={state()}>
+          <text
+            fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}
+            wrapMode="none"
+          >
+            {state()}
+          </text>
+        </Show>
       </box>
       <Show when={!collapsed()}>
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
