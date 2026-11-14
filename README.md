@@ -202,8 +202,9 @@ already sit on the bottom bar, so the card only carries the rates and the peak s
 collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
-uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate with its
-threshold (`>512K`).
+draws them as a right-aligned price list, `Input` through `Cache`, with the value in the theme accent and a muted `/M`
+unit. It uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate
+with its threshold (`>512K`).
 
 `Peak state` adds the provider's live peak marker for schedules the plugin knows, such as DeepSeek and OpenCode Go:
 `peak ×2 now` during the higher window and `off-peak` otherwise; it stays visible when the card is collapsed. The
