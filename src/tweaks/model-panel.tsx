@@ -231,11 +231,6 @@ function ModelBody(props: {
                 )}
               </For>
             </Show>
-            <Show when={reference()}>
-              <box flexDirection="row" justifyContent="center">
-                <text fg={theme().text.muted}>free model · estimated price</text>
-              </box>
-            </Show>
           </Show>
         </Show>
       </box>
