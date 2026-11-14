@@ -52,9 +52,9 @@ const THROUGHPUT = / \d[\d.]* tok\/s/
 const FOOTER_USAGE = /^(?: · )?\d[\d.,]*\s?[KMG]?\s?\(\d+%\)(?:\s·\s\$[\d.,]+){0,2}$/
 /** The line is rebuilt on every token, so a slow repair would lag behind it. */
 const REPAIR_MS = 400
-const BEFORE_ID = "opencode-tweaks.tokens.before"
-const AFTER_ID = "opencode-tweaks.tokens.after"
-const FOOTER_ID = "opencode-tweaks.tokens.footer"
+const BEFORE_ID = "opencode-tweaks.usage.before"
+const AFTER_ID = "opencode-tweaks.usage.after"
+const FOOTER_ID = "opencode-tweaks.usage.footer"
 
 /**
  * Hot reload evaluates this module again while the old repair timers keep
@@ -62,10 +62,10 @@ const FOOTER_ID = "opencode-tweaks.tokens.footer"
  * never reached its own dispose.
  */
 const timers = new Set<ReturnType<typeof setInterval>>()
-const previousTimers = (globalThis as { tokenInjectorTimers?: Set<ReturnType<typeof setInterval>> })
-  .tokenInjectorTimers
+const previousTimers = (globalThis as { usageInjectorTimers?: Set<ReturnType<typeof setInterval>> })
+  .usageInjectorTimers
 for (const timer of previousTimers ?? []) clearInterval(timer)
-;(globalThis as { tokenInjectorTimers?: Set<ReturnType<typeof setInterval>> }).tokenInjectorTimers =
+;(globalThis as { usageInjectorTimers?: Set<ReturnType<typeof setInterval>> }).usageInjectorTimers =
   timers
 
 /**
@@ -229,7 +229,7 @@ export interface InjectorLabels {
   readonly after?: string
 }
 
-export interface TokenInjector {
+export interface UsageInjector {
   /**
    * The figures for the newest footer, tagged with the turn they belong to.
    * Empty fields hide them there.
@@ -257,7 +257,7 @@ interface Placed {
   afterNode?: HostNode
 }
 
-export function createTokenInjector(context: Context): TokenInjector {
+export function createUsageInjector(context: Context): UsageInjector {
   let labels: InjectorLabels = {}
   let key: string | undefined
   let active: HostText | undefined

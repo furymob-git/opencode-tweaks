@@ -8,13 +8,13 @@ import { defineTweak } from "./types"
 export const tokensTweak = defineTweak({
   id: "tokens",
   title: "Tokens",
-  description: "Show token and cost usage for a turn and for the whole session.",
+  description: "Show token usage for a turn and for the whole session.",
   category: "Session",
   settings: [
     {
       id: "enabled",
       title: "Enabled",
-      description: "Turn the token and cost counts on.",
+      description: "Turn the token counts on.",
       category: "General",
       kind: "boolean",
       default: true,
@@ -29,25 +29,9 @@ export const tokensTweak = defineTweak({
       default: true,
     },
     {
-      id: "promptCost",
-      title: "Turn cost",
-      description: "Show that turn's cost after the tok/s figure.",
-      category: "Display",
-      kind: "boolean",
-      default: true,
-    },
-    {
       id: "total",
       title: "Session tokens",
       description: "Show the session's total token usage on the bottom status line.",
-      category: "Display",
-      kind: "boolean",
-      default: true,
-    },
-    {
-      id: "totalCost",
-      title: "Session cost",
-      description: "Show the session's total cost on the bottom status line.",
       category: "Display",
       kind: "boolean",
       default: true,
@@ -60,17 +44,6 @@ export const tokensTweak = defineTweak({
       kind: "select",
       default: "compact",
       values: ["compact", "exact"],
-    },
-    {
-      id: "costDigits",
-      title: "Cost decimals",
-      description:
-        "Decimals shown for costs, or auto to keep going until the first significant digit.",
-      category: "Display",
-      kind: "select",
-      default: "auto",
-      values: ["auto", 2, 3, 4, 5, 6],
-      labels: ["Auto", "2 digits", "3 digits", "4 digits", "5 digits", "6 digits"],
     },
     {
       id: "ttft",
@@ -95,16 +68,7 @@ export const tokensTweak = defineTweak({
     {
       id: "subagents",
       title: "Include subagents",
-      description: "Add the tokens used by subagents to the session totals.",
-      category: "Scope",
-      kind: "boolean",
-      default: true,
-    },
-    {
-      id: "estimateCost",
-      title: "Estimate cost",
-      description:
-        "Guess the cost from the model's list price when the provider reports none. A session that changed model is estimated with the model it ended on.",
+      description: "Add the usage of subagents to the session totals. Costs follow the same scope.",
       category: "Scope",
       kind: "boolean",
       default: true,

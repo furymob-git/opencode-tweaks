@@ -30,6 +30,18 @@ export interface TweakSetting {
   readonly format?: (value: SettingValue) => string
 }
 
+/**
+ * Where a tweak's settings lived before it was split out. The store reads the
+ * old group when the new one holds no value, so a rename keeps the choice the
+ * user already made instead of silently resetting it.
+ */
+export interface TweakLegacy {
+  /** The tweak id the settings used to be stored under. */
+  readonly id: string
+  /** Current setting id to the id it used to have. */
+  readonly settings: Readonly<Record<string, string>>
+}
+
 export interface Tweak {
   readonly id: string
   readonly title: string
@@ -37,6 +49,7 @@ export interface Tweak {
   /** Group shown in the `/tweaks` list. */
   readonly category: string
   readonly settings: readonly TweakSetting[]
+  readonly legacy?: TweakLegacy
 }
 
 /** Settings changed from the menu, keyed by tweak and setting id. */
@@ -102,6 +115,12 @@ export function defineTweak(tweak: Tweak): Tweak {
           throw new Error(`Setting "${tweak.id}.${setting.id}" has a default outside its range`)
         }
         break
+    }
+  }
+
+  for (const id of Object.keys(tweak.legacy?.settings ?? {})) {
+    if (!ids.has(id)) {
+      throw new Error(`Legacy setting "${tweak.id}.${id}" is not defined`)
     }
   }
 

@@ -18,10 +18,28 @@ interface OptionsTree {
   readonly [key: string]: unknown
 }
 
+/** One setting from a group in `opencode.json`, if the group holds one. */
+function configValue(group: unknown, settingID: string): unknown {
+  if (!group || typeof group !== "object") return undefined
+  return (group as OptionsTree)[settingID]
+}
+
+/** Drops one stored value, and the empty group it leaves behind. */
+function forget(stored: StoredSettings, tweakID: string, settingID: string) {
+  const group = stored[tweakID]
+  if (!group) return
+
+  delete group[settingID]
+  if (Object.keys(group).length === 0) delete stored[tweakID]
+}
+
 /**
  * Reads settings in priority order: value chosen in `/tweaks`, then the plugin
  * options in `opencode.json`, then the definition default. Writes only touch
  * the local layer, so the config file stays the user's to edit.
+ *
+ * A split tweak also checks the group its settings came from, so a value chosen
+ * before the split keeps applying until the user changes or resets it.
  */
 export function createSettingsStore(context: Context): SettingsStore {
   const [stored, update] = context.storage.store<StoredSettings>("settings", { initial: {} })
@@ -33,14 +51,22 @@ export function createSettingsStore(context: Context): SettingsStore {
       return { value: userValue, source: "user" }
     }
 
-    const tweakOptions = options[tweak.id]
-    const configValue =
-      tweakOptions && typeof tweakOptions === "object"
-        ? (tweakOptions as OptionsTree)[setting.id]
-        : undefined
+    const tweakConfig = configValue(options[tweak.id], setting.id)
+    if (isSettingValue(setting, tweakConfig)) {
+      return { value: tweakConfig, source: "config" }
+    }
 
-    if (isSettingValue(setting, configValue)) {
-      return { value: configValue, source: "config" }
+    const legacyID = tweak.legacy?.settings[setting.id]
+    if (tweak.legacy && legacyID) {
+      const legacyUser = stored[tweak.legacy.id]?.[legacyID]
+      if (isSettingValue(setting, legacyUser)) {
+        return { value: legacyUser, source: "user" }
+      }
+
+      const legacyConfig = configValue(options[tweak.legacy.id], legacyID)
+      if (isSettingValue(setting, legacyConfig)) {
+        return { value: legacyConfig, source: "config" }
+      }
     }
 
     return { value: setting.default, source: "default" }
@@ -60,12 +86,11 @@ export function createSettingsStore(context: Context): SettingsStore {
   }
 
   async function reset(tweak: Tweak, setting: TweakSetting): Promise<void> {
-    await update((draft) => {
-      const group = draft[tweak.id]
-      if (!group) return
+    const legacyID = tweak.legacy?.settings[setting.id]
 
-      delete group[setting.id]
-      if (Object.keys(group).length === 0) delete draft[tweak.id]
+    await update((draft) => {
+      forget(draft, tweak.id, setting.id)
+      if (tweak.legacy && legacyID) forget(draft, tweak.legacy.id, legacyID)
     })
   }
 
