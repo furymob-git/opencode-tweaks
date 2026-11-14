@@ -295,6 +295,7 @@ describe("modelTweak", () => {
       peak: true,
       peakOnly: false,
       align: "right",
+      free: "reference",
     })
   })
 })
