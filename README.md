@@ -179,6 +179,12 @@ Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost d
 `Auto` keeps two decimals and grows until the first significant digit shows (`$0.004`), while a fixed choice always
 keeps that many (`$0.0042`).
 
+`Price windows` marks the provider's higher rate beside the cost. DeepSeek doubles its listed prices from 01:00 to
+04:00 and from 06:00 to 10:00 UTC, Monday to Friday, and bills Chinese public holidays at the off-peak rate; OpenCode
+Go publishes the same DeepSeek rates. The badge reads `peak ×2` while that rate applies. The catalog already holds the
+off-peak price, so the figures themselves stay the listed rate. The 2026 and 2027 holidays are built in; update
+`src/usage/price-window.ts` when the next calendar is published.
+
 `Estimate cost` fills in a price the provider did not report, using the model's list price from the same catalog
 OpenCode already synced: prompt, completion, reasoning billed as output, and cache traffic, each at its own rate. A
 provider that reports a price always wins, and a session that changed model is estimated with the model it ended on, so
@@ -212,6 +218,7 @@ src/
     messages.ts     message shape and turn selection
     tokens.ts       token sums and formatting
     cost.ts         list prices, estimates, and cost formatting
+    price-window.ts provider peak hours and holidays
   tui.tsx           terminal entry: commands and slots
   tweaks/
     types.ts        settings schema and validation
