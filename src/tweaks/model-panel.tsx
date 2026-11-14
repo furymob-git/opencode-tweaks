@@ -1,6 +1,6 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
 import { TextAttributes } from "@opentui/core"
-import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { formatRate, priceFor } from "../usage/cost"
 import { hasPriceSchedule, priceWindowFor } from "../usage/price-window"
 import { formatTokens } from "../usage/tokens"
@@ -53,6 +53,7 @@ function ModelBody(props: {
 }) {
   const theme = () => props.context.theme
   const [now, setNow] = createSignal(Date.now())
+  const [collapsed, setCollapsed] = createSignal(false)
 
   const inputOn = () => props.store.read(modelTweak, INPUT).value === true
   const outputOn = () => props.store.read(modelTweak, OUTPUT).value === true
@@ -106,26 +107,25 @@ function ModelBody(props: {
 
   const rates = createMemo(() => {
     const value = price()
-    if (!value) return undefined
+    if (!value) return []
 
-    const parts: string[] = []
-    if (inputOn()) parts.push(`in ${formatRate(value.input)}`)
-    if (outputOn()) parts.push(`out ${formatRate(value.output)}`)
-    if (cacheOn()) parts.push(`cache ${formatRate(value.cache.read)}`)
-    if (parts.length > 0 && value.tier) {
-      parts.push(`>${formatTokens(value.tier.size, "compact")}`)
+    const rows: { label: string; value: string }[] = []
+    if (inputOn()) rows.push({ label: "in", value: formatRate(value.input) })
+    if (outputOn()) rows.push({ label: "out", value: formatRate(value.output) })
+    if (cacheOn()) rows.push({ label: "cache", value: formatRate(value.cache.read) })
+    if (rows.length > 0 && value.tier) {
+      rows.push({ label: "from", value: `>${formatTokens(value.tier.size, "compact")}` })
     }
 
-    return parts.length > 0 ? parts.join(" · ") : undefined
+    return rows
   })
 
   const variant = () => (variantOn() ? entry()?.ref.variant : undefined)
 
-  const subtitle = () => {
-    const parts = [entry()?.provider, variant()].filter(
-      (part): part is string => typeof part === "string" && part.length > 0,
-    )
-    return parts.length > 0 ? parts.join(" · ") : undefined
+  const title = () => {
+    const name = entry()?.name
+    const selected = variant()
+    return selected ? `${name} · ${selected}` : name
   }
 
   const scheduled = () => {
@@ -139,10 +139,10 @@ function ModelBody(props: {
     return priceWindowFor(ref, new Date(now()))
   }
 
-  const peakLabel = () => {
+  const stateValue = () => {
     if (!peakOn() || !scheduled()) return undefined
-    const window = peak()
-    return window ? `${window.label} ×${window.multiplier} now` : "off-peak"
+    const value = peak()
+    return value ? `${value.label} ×${value.multiplier} now` : "off-peak"
   }
 
   // The live peak marker follows the clock, so refresh it while the card can
@@ -157,27 +157,45 @@ function ModelBody(props: {
 
   return (
     <box flexDirection="column" marginTop={1}>
-      <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
-        Model
-      </text>
-      <Show when={entry()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
-        <text fg={theme().text.base} wrapMode="word">
-          {entry()?.name}
+      <box
+        flexDirection="row"
+        justifyContent="space-between"
+        onMouseUp={() => setCollapsed((value) => !value)}
+      >
+        <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
+          {collapsed() ? "▶" : "▼"} Model
         </text>
-        <Show when={subtitle()}>
-          <text fg={theme().text.muted} wrapMode="word">
-            {subtitle()}
+        <Show when={entry()?.provider}>
+          <text fg={theme().text.muted} wrapMode="none">
+            {entry()?.provider}
           </text>
         </Show>
-        <Show when={rates()}>
-          <text fg={theme().text.muted} wrapMode="word">
-            {rates()}
+      </box>
+      <Show when={!collapsed()}>
+        <Show when={entry()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
+          <text fg={theme().text.base} wrapMode="word">
+            {title()}
           </text>
-        </Show>
-        <Show when={peakLabel()}>
-          <text fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}>
-            {peakLabel()}
-          </text>
+          <For each={rates()}>
+            {(row) => (
+              <box flexDirection="row" gap={1}>
+                <text flexShrink={0} fg={theme().text.muted}>
+                  {row.label.padEnd(5)}
+                </text>
+                <text fg={theme().text.base}>{row.value}</text>
+              </box>
+            )}
+          </For>
+          <Show when={stateValue()}>
+            <box flexDirection="row" gap={1}>
+              <text flexShrink={0} fg={theme().text.muted}>
+                {"state".padEnd(5)}
+              </text>
+              <text fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}>
+                {stateValue()}
+              </text>
+            </box>
+          </Show>
         </Show>
       </Show>
     </box>
