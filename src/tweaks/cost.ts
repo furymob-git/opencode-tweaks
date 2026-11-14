@@ -58,6 +58,15 @@ export const costTweak = defineTweak({
       labels: ["Auto", "2 digits", "3 digits", "4 digits", "5 digits", "6 digits"],
     },
     {
+      id: "windows",
+      title: "Price windows",
+      description:
+        "Mark when the provider charges more than the catalog price, such as DeepSeek peak hours.",
+      category: "Display",
+      kind: "boolean",
+      default: true,
+    },
+    {
       id: "estimate",
       title: "Estimate cost",
       description:

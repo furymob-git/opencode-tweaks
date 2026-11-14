@@ -262,6 +262,7 @@ describe("costTweak", () => {
       prompt: true,
       total: true,
       digits: "auto",
+      windows: true,
       estimate: true,
     })
   })
