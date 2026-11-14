@@ -14,14 +14,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release notes come from the annotated tag, which a shallow
+          # checkout does not fetch.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run check
-      - run: npm publish
-      - name: Create the GitHub release
-        run: gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --notes-from-tag --verify-tag
+      - name: Publish to npm
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "opencode-tweaks@$version" version > /dev/null 2>&1; then
+            echo "opencode-tweaks@$version is already published"
+          else
+            npm publish
+          fi
+      - name: Create or update the GitHub release
+        run: |
+          tag="${{ github.ref_name }}"
+          git tag -l --format='%(contents)' "$tag" > release-notes.md
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release edit "$tag" --notes-file release-notes.md
+          else
+            gh release create "$tag" --title "$tag" --notes-file release-notes.md --verify-tag
+          fi
         env:
           GH_TOKEN: ${{ github.token }}

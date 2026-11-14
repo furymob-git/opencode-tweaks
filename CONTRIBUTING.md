@@ -127,7 +127,7 @@ Releases are cut from `main`:
 
 Versions follow semver. A tweak that changes an existing default is a breaking change.
 
-Pushing the tag starts `.github/workflows/publish.yml`, which runs the checks, publishes to npm, then opens a GitHub
-release whose notes come from the annotated tag. The workflow uses trusted publishing: it authenticates through GitHub
-OIDC and needs no npm token. The repository must stay registered as a trusted publisher for the package on npmjs.com,
-and the publish permission must stay allowed there.
+Pushing the tag starts `.github/workflows/publish.yml`, which runs the checks, publishes to npm unless that version is
+already on the registry, then creates or updates a GitHub release whose notes come from the annotated tag. The workflow
+uses trusted publishing: it authenticates through GitHub OIDC and needs no npm token. The repository must stay
+registered as a trusted publisher for the package on npmjs.com, and the publish permission must stay allowed there.
