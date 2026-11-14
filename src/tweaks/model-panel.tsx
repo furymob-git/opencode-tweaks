@@ -132,12 +132,10 @@ function ModelBody(props: {
     return priceWindowFor(ref, new Date(now()))
   }
 
-  const state = () => {
-    if (!peakOn() || !scheduled()) return undefined
-    const value = peak()
-    if (!value) return peakOnly() ? undefined : "off-peak ×1"
-    return `peak ×${value.multiplier}`
-  }
+  /** The price multiplier now, `1` when the catalog price is the one charged. */
+  const multiplier = () => peak()?.multiplier ?? 1
+
+  const showMultiplier = () => peakOn() && scheduled() && (peak() !== undefined || !peakOnly())
 
   // The live peak marker follows the clock, so refresh it while the card can
   // show one. Models without a schedule and a hidden peak state need no timer.
@@ -159,12 +157,12 @@ function ModelBody(props: {
         <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
           {collapsed() ? "▶" : "▼"} Model
         </text>
-        <Show when={state()}>
-          <text
-            fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}
-            wrapMode="none"
-          >
-            {state()}
+        <Show when={showMultiplier()}>
+          <text fg={theme().text.base} wrapMode="none">
+            {"Mult "}
+            <span style={{ fg: peak() ? theme().text.feedback.warning.base : theme().text.base }}>
+              {`×${multiplier()}`}
+            </span>
           </text>
         </Show>
       </box>
