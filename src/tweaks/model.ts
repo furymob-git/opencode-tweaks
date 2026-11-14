@@ -46,7 +46,15 @@ export const modelTweak = defineTweak({
     {
       id: "peak",
       title: "Peak state",
-      description: "Show whether the model is billed above its catalog price right now.",
+      description: "Show the model's current price multiplier in the card header.",
+      category: "Display",
+      kind: "boolean",
+      default: true,
+    },
+    {
+      id: "peakOnly",
+      title: "Peak only",
+      description: "Hide the multiplier while the model bills at its base price.",
       category: "Display",
       kind: "boolean",
       default: true,
