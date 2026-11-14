@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { estimateCost, formatCost, messagesCost, priceFor } from "./cost"
+import { estimateCost, formatCost, formatRate, messagesCost, priceFor } from "./cost"
 import { type MessageTokens, replyTurnMessages, type UsageMessage } from "./messages"
 
 const usage = (
@@ -108,5 +108,23 @@ describe("formatCost", () => {
   it("shows free models as zero", () => {
     expect(formatCost(0)).toBe("$0.00")
     expect(formatCost(-1)).toBe("$0.00")
+  })
+})
+
+describe("formatRate", () => {
+  it("keeps two decimals for a normal rate", () => {
+    expect(formatRate(0.15)).toBe("$0.15")
+    expect(formatRate(0.6)).toBe("$0.60")
+    expect(formatRate(1.98)).toBe("$1.98")
+  })
+
+  it("keeps sub-cent rates readable", () => {
+    expect(formatRate(0.003)).toBe("$0.003")
+    expect(formatRate(0.0028)).toBe("$0.0028")
+    expect(formatRate(0.003625)).toBe("$0.003625")
+  })
+
+  it("does not invent decimals on a free rate", () => {
+    expect(formatRate(0)).toBe("$0")
   })
 })
