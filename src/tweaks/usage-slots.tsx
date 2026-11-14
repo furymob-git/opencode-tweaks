@@ -1,63 +1,64 @@
 import type { Context, SlotMap } from "@opencode/plugin/tui/context"
 import { createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js"
-import type { SettingsStore } from "./settings"
-import type { TokenInjector } from "./token-inject"
-import { tokensTweak } from "./tokens"
 import {
   type CostDigits,
   estimateCost,
-  footerMessage,
   formatCost,
-  formatTokens,
   isCostDigits,
   type ModelPrice,
   messagesCost,
   priceFor,
-  replyTurnMessages,
-  sessionTokens,
-  type TokenCount,
-  type TokenMessage,
-  usageTokens,
-} from "./tokens-model"
-import type { TweakSetting } from "./types"
+} from "../usage/cost"
+import { footerMessage, replyTurnMessages, type UsageMessage } from "../usage/messages"
+import { formatTokens, sessionTokens, type TokenCount, usageTokens } from "../usage/tokens"
+import { costTweak } from "./cost"
+import type { SettingsStore } from "./settings"
+import { tokensTweak } from "./tokens"
+import type { Tweak, TweakSetting } from "./types"
+import type { UsageInjector } from "./usage-inject"
 
-function setting(id: string): TweakSetting {
-  const found = tokensTweak.settings.find((item) => item.id === id)
-  if (!found) throw new Error(`Tokens setting "${id}" is missing`)
+function setting(tweak: Tweak, id: string): TweakSetting {
+  const found = tweak.settings.find((item) => item.id === id)
+  if (!found) throw new Error(`${tweak.title} setting "${id}" is missing`)
   return found
 }
 
-const ENABLED = setting("enabled")
-const PROMPT = setting("prompt")
-const TOTAL = setting("total")
-const SUBAGENTS = setting("subagents")
-const COUNT = setting("count")
-const PROMPT_COST = setting("promptCost")
-const TOTAL_COST = setting("totalCost")
-const COST_DIGITS = setting("costDigits")
-const ESTIMATE = setting("estimateCost")
-const FORMAT = setting("format")
-const TTFT = setting("ttft")
+const TOKENS_ON = setting(tokensTweak, "enabled")
+const PROMPT = setting(tokensTweak, "prompt")
+const TOTAL = setting(tokensTweak, "total")
+const SUBAGENTS = setting(tokensTweak, "subagents")
+const COUNT = setting(tokensTweak, "count")
+const FORMAT = setting(tokensTweak, "format")
+const TTFT = setting(tokensTweak, "ttft")
+
+const COST_ON = setting(costTweak, "enabled")
+const PROMPT_COST = setting(costTweak, "prompt")
+const TOTAL_COST = setting(costTweak, "total")
+const COST_DIGITS = setting(costTweak, "digits")
+const ESTIMATE = setting(costTweak, "estimate")
 
 /**
- * The two counts, shared by both placements. The prompt count follows the open
- * session because a prompt belongs to it. The total optionally follows the
- * session tree, since a subagent's tokens belong to the turn its parent started.
+ * The figures, shared by both placements. The prompt figures follow the open
+ * session because a prompt belongs to it. The totals optionally follow the
+ * session tree, since a subagent's usage belongs to the turn its parent
+ * started. Tokens and cost can be switched off independently.
  */
-function useCounts(props: {
+function useUsage(props: {
   readonly context: Context
   readonly store: SettingsStore
   readonly sessionID: () => string | undefined
 }) {
-  const enabled = () => props.store.read(tokensTweak, ENABLED).value === true
+  const tokensOn = () => props.store.read(tokensTweak, TOKENS_ON).value === true
+  const costOn = () => props.store.read(costTweak, COST_ON).value === true
   const perPrompt = () => props.store.read(tokensTweak, PROMPT).value === true
   const sessionTotal = () => props.store.read(tokensTweak, TOTAL).value === true
   const subagents = () => props.store.read(tokensTweak, SUBAGENTS).value === true
-  const promptCost = () => props.store.read(tokensTweak, PROMPT_COST).value === true
-  const totalCost = () => props.store.read(tokensTweak, TOTAL_COST).value === true
-  const estimate = () => props.store.read(tokensTweak, ESTIMATE).value === true
+  const promptCost = () => props.store.read(costTweak, PROMPT_COST).value === true
+  const totalCost = () => props.store.read(costTweak, TOTAL_COST).value === true
+  const estimate = () => props.store.read(costTweak, ESTIMATE).value === true
+  const ttft = () => props.store.read(tokensTweak, TTFT).value !== false
   const costDigits = (): CostDigits => {
-    const value = props.store.read(tokensTweak, COST_DIGITS).value
+    const value = props.store.read(costTweak, COST_DIGITS).value
     return isCostDigits(value) ? value : "auto"
   }
   const count = (): TokenCount => {
@@ -157,7 +158,7 @@ function useCounts(props: {
     if (!replied()) return undefined
 
     const lookup = estimate()
-      ? (message: TokenMessage) => {
+      ? (message: UsageMessage) => {
           const tokens = message.tokens
           if (!tokens) return undefined
           return priceOf(message.model, tokens.input + tokens.cache.read)
@@ -170,54 +171,63 @@ function useCounts(props: {
   /** The formatted count, or `undefined` while there is nothing worth showing. */
   const format = (value: number) => (value > 0 ? formatTokens(value, style()) : undefined)
 
-  const promptCount = () => (enabled() && perPrompt() ? format(prompt()) : undefined)
-  const totalCount = () => (enabled() && sessionTotal() ? format(total()) : undefined)
+  const promptCount = () => (tokensOn() && perPrompt() ? format(prompt()) : undefined)
+  const totalCount = () => (tokensOn() && sessionTotal() ? format(total()) : undefined)
   const promptCostLabel = () => {
     const value = cost()
-    return enabled() && promptCost() && value !== undefined
+    return costOn() && promptCost() && value !== undefined
       ? formatCost(value, costDigits())
       : undefined
   }
   const totalCostLabel = () =>
-    enabled() && totalCost() ? formatCost(sessionCost(), costDigits()) : undefined
+    costOn() && totalCost() ? formatCost(sessionCost(), costDigits()) : undefined
 
-  return { enabled, promptKey, promptCount, totalCount, promptCostLabel, totalCostLabel }
+  return {
+    enabled: () => tokensOn() || costOn(),
+    // The host keeps its own ttft figure whenever the token tweak is off.
+    ttft: () => !tokensOn() || ttft(),
+    promptKey,
+    promptCount,
+    totalCount,
+    promptCostLabel,
+    totalCostLabel,
+  }
 }
 
 /**
- * Inline placement has no row of its own: it hands the prompt count to the
- * injector, which splices it into the host's tok/s line. The composer slot is
+ * Inline placement has no row of its own: it hands the prompt figures to the
+ * injector, which splices them into the host's tok/s line. The composer slot is
  * claimed anyway because it is the published place that gives the plugin a
  * reactive session context above the prompt; this component renders nothing.
  */
-export function TokenInline(props: {
+export function UsageInline(props: {
   readonly context: Context
   readonly input: SlotMap["session.composer.top"]
   readonly store: SettingsStore
-  readonly injector: TokenInjector
+  readonly injector: UsageInjector
 }) {
-  const counts = useCounts({
+  const usage = useUsage({
     context: props.context,
     store: props.store,
     sessionID: () => props.input.sessionID,
   })
 
   createEffect(() => {
-    if (!counts.enabled()) {
+    if (!usage.enabled()) {
       props.injector.clear()
       return
     }
 
-    props.injector.setTtft(props.store.read(tokensTweak, TTFT).value !== false)
+    props.injector.setTtft(usage.ttft())
 
-    const count = counts.promptCount()
-    const cost = counts.promptCostLabel()
+    const count = usage.promptCount()
+    const cost = usage.promptCostLabel()
     props.injector.setLabels(
       {
         before: count ? ` · ${count} tok` : undefined,
         after: cost ? ` · ${cost}` : undefined,
       },
-      counts.promptKey(),
+      usage.promptKey(),
     )
   })
 
@@ -225,13 +235,13 @@ export function TokenInline(props: {
 }
 
 /** The bottom status line, next to the working directory and the other details. */
-export function TokenStatus(props: {
+export function UsageStatus(props: {
   readonly context: Context
   readonly input: SlotMap["prompt.footer.status"]
   readonly store: SettingsStore
-  readonly injector: TokenInjector
+  readonly injector: UsageInjector
 }) {
-  const counts = useCounts({
+  const usage = useUsage({
     context: props.context,
     store: props.store,
     sessionID: () => props.input.sessionID,
@@ -264,9 +274,9 @@ export function TokenStatus(props: {
 
   const figures = () => {
     const parts: string[] = []
-    const tokens = counts.totalCount()
+    const tokens = usage.totalCount()
     if (tokens) parts.push(`${tokens} tok total`)
-    const cost = counts.totalCostLabel()
+    const cost = usage.totalCostLabel()
     if (cost) parts.push(cost)
     return parts.length > 0 ? parts.join(" · ") : undefined
   }
@@ -291,7 +301,7 @@ export function TokenStatus(props: {
     const present = children()
     if (present === lastPresence) return
     lastPresence = present
-    // The token counters must not re-run this effect: it would cancel the
+    // The usage counters must not re-run this effect: it would cancel the
     // follow-up passes every time a figure changes.
     untrack(repaint)
     const passes = [16, 50, 150].map((delay) => setTimeout(() => untrack(repaint), delay))

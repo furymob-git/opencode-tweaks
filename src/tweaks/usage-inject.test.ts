@@ -1,6 +1,6 @@
 import type { Context } from "@opencode/plugin/tui/context"
 import { describe, expect, it } from "vitest"
-import { createTokenInjector, lastThroughputText } from "./token-inject"
+import { createUsageInjector, lastThroughputText } from "./usage-inject"
 
 /** The parts of a host text renderable the walker reads. */
 function text(plainText: string) {
@@ -113,13 +113,13 @@ function injectorFor(extra: ue[] = []) {
   throughput.add(" · 62.2 tok/s")
   span.add(throughput)
   const text = hostText(FOOTER, [span, ...extra])
-  const injector = createTokenInjector({
+  const injector = createUsageInjector({
     renderer: { root: { getChildren: () => [text] } },
   } as unknown as Context)
   return { injector, text, span, children: text.getTextChildren() as ue[] }
 }
 
-describe("createTokenInjector", () => {
+describe("createUsageInjector", () => {
   it("splices the total in front of the throughput span", () => {
     const { injector, children, span } = injectorFor()
     injector.setLabels({ before: " · 8.5M tok" })
@@ -208,7 +208,7 @@ describe("createTokenInjector", () => {
   })
 
   it("leaves the line alone when the host has no throughput", () => {
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: {
         root: { getChildren: () => [hostText("~/project", [new Ie()])] },
       },
@@ -239,12 +239,12 @@ function footer(rate: string, ttft?: string) {
   return { text, span, children: text.getTextChildren() as ue[] }
 }
 
-describe("createTokenInjector across turns", () => {
+describe("createUsageInjector across turns", () => {
   it("writes the figures on the newest footer only", () => {
     const first = footer("12.0")
     const second = footer("62.2")
     const root = { getChildren: () => [first.text, second.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 2")
 
@@ -256,7 +256,7 @@ describe("createTokenInjector across turns", () => {
   it("keeps the previous line's figures when a newer footer appears", () => {
     const first = footer("12.0")
     const root = { getChildren: (): unknown[] => [first.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setLabels({ before: " · 1.2K tok", after: " · $0.0010" }, "turn 1")
     expect(first.children.map(nodeText)).toEqual([" · 1.2K tok", " · 12.0 tok/s", " · $0.0010"])
@@ -273,7 +273,7 @@ describe("createTokenInjector across turns", () => {
   it("waits for the new turn's footer instead of writing on the old line", () => {
     const first = footer("12.0")
     const root = { getChildren: (): unknown[] => [first.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setLabels({ before: " · 1.2K tok", after: " · $0.0010" }, "turn 1")
     // The figures for turn 2 land before the host renders its footer.
@@ -293,7 +293,7 @@ describe("createTokenInjector across turns", () => {
     const first = footer("12.0")
     const second = footer("62.2")
     const root = { getChildren: (): unknown[] => [first.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setLabels({ before: " · 1.2K tok" }, "turn 1")
     root.getChildren = () => [first.text, second.text]
@@ -309,7 +309,7 @@ describe("createTokenInjector across turns", () => {
     const first = footer("12.0")
     const second = footer("62.2")
     const root = { getChildren: (): unknown[] => [first.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setLabels({ before: " · 1.2K tok" }, "turn 1")
     root.getChildren = () => [first.text, second.text]
@@ -321,11 +321,11 @@ describe("createTokenInjector across turns", () => {
   })
 })
 
-describe("createTokenInjector and the host's ttft", () => {
+describe("createUsageInjector and the host's ttft", () => {
   it("hides the ttft span and keeps the throughput", () => {
     const line = footer("62.2", "1.7s")
     const root = { getChildren: () => [line.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setTtft(false)
     expect(line.children.map(nodeText)).toEqual([" · 62.2 tok/s"])
@@ -338,7 +338,7 @@ describe("createTokenInjector and the host's ttft", () => {
   it("puts the ttft span back after the cost", () => {
     const line = footer("62.2", "1.7s")
     const root = { getChildren: () => [line.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setTtft(false)
     injector.setLabels({ before: " · 8.5M tok", after: " · $0.0042" }, "turn 1")
@@ -356,7 +356,7 @@ describe("createTokenInjector and the host's ttft", () => {
   it("hides it again on a line the host rebuilt", () => {
     const line = footer("62.2", "1.7s")
     const root = { getChildren: () => [line.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     const ttftSpan = line.children[1] as ue
     injector.setTtft(false)
@@ -371,7 +371,7 @@ describe("createTokenInjector and the host's ttft", () => {
   it("brings ttft back when the tweak is turned off", () => {
     const line = footer("62.2", "1.7s")
     const root = { getChildren: () => [line.text] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setTtft(false)
     injector.clear()
@@ -428,10 +428,10 @@ function usageSurface(text = "114.9K (29%)") {
   return usage
 }
 
-describe("createTokenInjector and the footer figures", () => {
+describe("createUsageInjector and the footer figures", () => {
   it("appends the cost after the context usage", () => {
     const usage = usageSurface()
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [usage] } },
     } as unknown as Context)
 
@@ -445,7 +445,7 @@ describe("createTokenInjector and the footer figures", () => {
 
   it("puts the cost back after the host rebuilds the usage", () => {
     const usage = usageSurface()
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [usage] } },
     } as unknown as Context)
 
@@ -460,7 +460,7 @@ describe("createTokenInjector and the footer figures", () => {
 
   it("updates the cost without adding a second node", () => {
     const usage = usageSurface()
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [usage] } },
     } as unknown as Context)
 
@@ -473,7 +473,7 @@ describe("createTokenInjector and the footer figures", () => {
 
   it("keeps the host's own cost and adds the tweak's after it", () => {
     const usage = usageSurface("114.9K (29%) · $0.05")
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [usage] } },
     } as unknown as Context)
 
@@ -484,7 +484,7 @@ describe("createTokenInjector and the footer figures", () => {
 
   it("leaves text that only mentions the usage alone", () => {
     const usage = usageSurface("the context is 114.9K (29%) now")
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [usage] } },
     } as unknown as Context)
 
@@ -496,7 +496,7 @@ describe("createTokenInjector and the footer figures", () => {
   it("puts the figures before the context while a shell stays on the left", () => {
     const shell = usageSurface("1 shell")
     const usage = usageSurface(" · 114.9K (29%)")
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [shell, usage] } },
     } as unknown as Context)
 
@@ -510,7 +510,7 @@ describe("createTokenInjector and the footer figures", () => {
     const shell = usageSurface("1 shell")
     const usage = usageSurface(" · 114.9K (29%)")
     const root = { getChildren: (): unknown[] => [shell, usage] }
-    const injector = createTokenInjector({ renderer: { root } } as unknown as Context)
+    const injector = createUsageInjector({ renderer: { root } } as unknown as Context)
 
     injector.setFooterFigures("649.3K tok total · $0.91")
     usage.children = ["114.9K (29%)"]
@@ -529,7 +529,7 @@ describe("createTokenInjector and the footer figures", () => {
     const leaf = new UsageText()
     leaf.children.push("219.6K (56%)")
     usage.children.push(empty, leaf)
-    const injector = createTokenInjector({
+    const injector = createUsageInjector({
       renderer: { root: { getChildren: () => [shell, usage] } },
     } as unknown as Context)
 

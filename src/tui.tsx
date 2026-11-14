@@ -2,14 +2,14 @@ import { Plugin } from "@opencode/plugin/tui"
 import { openTweaksMenu } from "./tweaks/menu"
 import { QuotaPanel } from "./tweaks/quota-panel"
 import { createSettingsStore } from "./tweaks/settings"
-import { createTokenInjector } from "./tweaks/token-inject"
-import { TokenInline, TokenStatus } from "./tweaks/token-slots"
+import { createUsageInjector } from "./tweaks/usage-inject"
+import { UsageInline, UsageStatus } from "./tweaks/usage-slots"
 
 export default Plugin.define({
   id: "opencode-tweaks.tui",
   setup(context) {
     const store = createSettingsStore(context)
-    const tokens = createTokenInjector(context)
+    const usage = createUsageInjector(context)
     let menuOpen = false
 
     context.ui.slot({
@@ -20,14 +20,14 @@ export default Plugin.define({
     context.ui.slot({
       append: "session.composer.top",
       render: (input) => (
-        <TokenInline context={context} input={input} store={store} injector={tokens} />
+        <UsageInline context={context} input={input} store={store} injector={usage} />
       ),
     })
 
     context.ui.slot({
       after: "prompt.footer.status",
       render: (input) => (
-        <TokenStatus context={context} input={input} store={store} injector={tokens} />
+        <UsageStatus context={context} input={input} store={store} injector={usage} />
       ),
     })
 
@@ -61,6 +61,6 @@ export default Plugin.define({
       ],
     }))
 
-    return () => tokens.dispose()
+    return () => usage.dispose()
   },
 })

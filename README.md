@@ -95,10 +95,11 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 ## Tweaks
 
-| Tweak    | What it does                                                      | Default |
-| -------- | ----------------------------------------------------------------- | ------- |
-| `quota`  | Provider quota, reset times, and a daily spending budget.         | On      |
-| `tokens` | Token and cost usage per turn, plus session totals at the bottom. | On      |
+| Tweak    | What it does                                              | Default |
+| -------- | --------------------------------------------------------- | ------- |
+| `quota`  | Provider quota, reset times, and a daily spending budget. | On      |
+| `tokens` | Token usage per turn, plus session totals at the bottom.  | On      |
+| `cost`   | Cost per turn, plus session totals at the bottom.         | On      |
 
 ### Quota
 
@@ -134,7 +135,7 @@ the row. The budget resets at local midnight, and a changed provider reset or wo
 
 ### Tokens
 
-Tokens shows two token counts and, optionally, their cost. Each has its own toggle.
+Tokens shows two token counts, each with its own toggle.
 
 `Turn tokens` adds what the latest finished turn spent to its `tok/s` line: `12.3K tok · 62.2 tok/s`. OpenCode draws
 that line itself and publishes no slot inside it, so the tweak splices the value into the line's text node and repairs
@@ -148,22 +149,31 @@ receives its figures and the older lines keep theirs.
 `First token time` controls the host's own `1.7s ttft` figure at the end of that line: it is off by default, so the
 span is removed and `tok/s` stays alone. Turning it on restores the host's figure.
 
-`Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
-
 `Session tokens` adds the session's total usage to the bottom status line, before the host's context figure:
-`1 shell · 790.6K tok total · $0.91 · 115K (29%)`. It reads the counters the session itself keeps, so
-the number stays exact even when the transcript has only loaded its latest messages. The figures follow the shell
-indicator when one is running and otherwise open the context text, so the order stays shell, total, session cost,
-context. OpenCode draws those texts itself and publishes no slot inside them, so the figures are spliced in and
-repaired while the line changes; when the splice is not available the figures stay out of the line rather than
-moving elsewhere.
+`1 shell · 790.6K tok total · 115K (29%)`. When the cost tweak is on, its figure sits between the total and the
+context. It reads the counters the session itself keeps, so the number stays exact even when the transcript has only
+loaded its latest messages. The figures follow the shell indicator when one is running and otherwise open the context
+text, so the order stays shell, total, session cost, context. OpenCode draws those texts itself and publishes no slot
+inside them, so the figures are spliced in and repaired while the line changes; when the splice is not available the
+figures stay out of the line rather than moving elsewhere.
 
-`Token count` picks what the two numbers add up. `Generated only` is the default: it keeps just what the model wrote.
+`Token count` picks what the numbers add up. `Generated only` is the default: it keeps just what the model wrote.
 `New tokens` adds prompt, completion, reasoning, and cache writes, without cache reads, because a turn re-reads the
 whole context at every step and those reads would dwarf everything else. `Everything` matches the counters `/stats`
-reports, cache reads included. `Include subagents` is on by default, so the session totals cover the whole session tree
-instead of only the session on screen; the per-turn count always stays on the session on screen, because a prompt
+reports, cache reads included. `Include subagents` is on by default, so both session totals cover the whole session tree
+instead of only the session on screen; the per-turn figures always stay on the session on screen, because a prompt
 belongs to it. `Token format` switches between compact counts such as `12.4K` and every digit such as `12,431`.
+
+### Cost
+
+Cost shows what a turn and the session spent, each with its own toggle. It reads the same counters as Tokens, and
+either tweak can be off without hiding the other.
+
+`Turn cost` adds that turn's cost after the throughput figure: `62.2 tok/s · $0.0042`.
+
+`Session cost` adds the session's total cost to the bottom status line, before the host's context figure:
+`1 shell · 790.6K tok total · $0.91 · 115K (29%)`. It follows the same session tree as the token total, including
+`Include subagents`.
 
 Costs come from what the provider reports, so a free plan shows `$0.00`. `Cost decimals` controls the decimals:
 `Auto` keeps two decimals and grows until the first significant digit shows (`$0.004`), while a fixed choice always
@@ -174,6 +184,8 @@ OpenCode already synced: prompt, completion, reasoning billed as output, and cac
 provider that reports a price always wins, and a session that changed model is estimated with the model it ended on, so
 treat the figure as an estimate. This is what makes the OpenCode Go monthly credit readable: the plan reports `$0.00`
 per turn, and the estimate follows the API rates instead. Costs use the raw counters whatever `Token count` says.
+
+The cost settings used to live in the Tokens entry. A choice saved there before the split keeps applying.
 
 ## Development
 
@@ -194,8 +206,13 @@ src/
   quota/
     service.ts      credential lookup and quota fetch
     parse.ts        provider response parsing
+    pace.ts         daily budget pacing
     format.ts       percents, reset times, and bars
-  tui.tsx           terminal entry: command and sidebar slot
+  usage/
+    messages.ts     message shape and turn selection
+    tokens.ts       token sums and formatting
+    cost.ts         list prices, estimates, and cost formatting
+  tui.tsx           terminal entry: commands and slots
   tweaks/
     types.ts        settings schema and validation
     registry.ts     list of tweaks
@@ -205,10 +222,10 @@ src/
     menu-model.ts   filtering and selection helpers
     quota.ts        quota tweak definition
     quota-panel.tsx sidebar quota panel
-    tokens.ts       tokens tweak definition
-    token-slots.tsx inline splice driver and status line
-    token-inject.ts splice into the host's tok/s line
-    tokens-model.ts token sum and formatting
+    tokens.ts       token tweak definition
+    cost.ts         cost tweak definition
+    usage-slots.tsx inline and status line figures
+    usage-inject.ts splice into the host's lines
 ```
 
 ## Contributing
