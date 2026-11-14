@@ -29,21 +29,21 @@ configuration format may change before the first stable release.
 
 ## Install
 
-`opencode-tweaks` is not published on npm yet. Until it is, point OpenCode at a local checkout:
+```sh
+opencode plugin add opencode-tweaks
+```
+
+Or add it to the `plugins` list in `opencode.json`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["../opencode-tweaks"]
+  "plugins": ["opencode-tweaks"]
 }
 ```
 
-Relative paths resolve from the config file that contains the entry and must point at a directory. Once the package is
-published, installation will be:
-
-```sh
-opencode plugin add opencode-tweaks
-```
+To follow the source instead, point the same list at a local checkout, such as `"../opencode-tweaks"`. Relative paths
+resolve from the config file that contains the entry and must point at a directory.
 
 ## Settings
 

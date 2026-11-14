@@ -21,7 +21,9 @@
     "opencode",
     "opencode-plugin",
     "tui",
-    "settings"
+    "settings",
+    "quota",
+    "tokens"
   ],
   "exports": {
     ".": "./src/index.ts",
@@ -32,6 +34,9 @@
     "src",
     "!src/**/*.test.ts"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
