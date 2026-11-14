@@ -61,6 +61,17 @@ export const modelTweak = defineTweak({
       values: ["left", "right"],
     },
     {
+      id: "free",
+      title: "Free models",
+      description:
+        "Show the paid list price, a Free label, or no card at all when the selected model is free.",
+      category: "Display",
+      kind: "select",
+      default: "reference",
+      values: ["reference", "label", "hidden"],
+      labels: ["List price", "Free label", "Hide card"],
+    },
+    {
       id: "peakOnly",
       title: "Peak only",
       description: "Show the multiplier only during a peak window.",

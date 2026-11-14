@@ -198,14 +198,19 @@ The cost settings used to live in the Tokens entry. A choice saved there before 
 ### Model
 
 Model shows the current model's list price in the sidebar, under the quota. The model name, provider, and variant
-already sit on the bottom bar, so the card only carries the rates and the peak state. Click the `Model` header to
-collapse or expand it.
+already sit on the bottom bar, so the card only carries the rates and the peak state. The rates follow the prompt's
+selected model, so picking another one in `/models` updates them at once, before the next turn. Click the `Model`
+header to collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
 draws them as a price list with the labels on the left and the values in the theme accent. `Price alignment` picks
 whether the prices start on one shared column (`left`) or sit against the right edge (`right`). It uses the catalog
 price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
 (`>512K`).
+
+A model that bills nothing, such as a free promo, follows `Free models`. `List price` shows the rates of the paid
+catalog entry it borrows. `Free label` shows a single `Free` line instead. `Hide card` removes the card until a paid
+model is selected.
 
 `Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
 DeepSeek and OpenCode Go: `×2` in the warning colour during the higher window and `×1` in the normal text colour off
@@ -238,6 +243,7 @@ src/
     messages.ts     message shape and turn selection
     tokens.ts       token sums and formatting
     cost.ts         list prices, estimates, and cost formatting
+    catalog.ts      catalog entries and paid sibling lookup
     price-window.ts provider peak hours and holidays
   tui.tsx           terminal entry: commands and slots
   tweaks/
