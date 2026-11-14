@@ -57,7 +57,7 @@ export const modelTweak = defineTweak({
       description: "Start the prices on one column, or push them against the right edge.",
       category: "Display",
       kind: "select",
-      default: "left",
+      default: "right",
       values: ["left", "right"],
     },
     {

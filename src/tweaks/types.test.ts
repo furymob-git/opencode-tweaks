@@ -294,7 +294,7 @@ describe("modelTweak", () => {
       cache: true,
       peak: true,
       peakOnly: false,
-      align: "left",
+      align: "right",
     })
   })
 })
