@@ -232,7 +232,9 @@ function ModelBody(props: {
               </For>
             </Show>
             <Show when={reference()}>
-              <text fg={theme().text.muted}>free model · list price</text>
+              <box flexDirection="row" justifyContent="center">
+                <text fg={theme().text.muted}>free model · estimated price</text>
+              </box>
             </Show>
           </Show>
         </Show>

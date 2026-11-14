@@ -209,7 +209,7 @@ price that applies to the session's context, so a long-context tier shows the hi
 (`>512K`).
 
 A model that bills nothing, such as a free promo, follows `Free models`. `List price` shows the rates of the paid
-catalog entry it borrows, with a `free model · list price` note under them. `Free label` shows a single `Free` line
+catalog entry it borrows, with a `free model · estimated price` note centred under them. `Free label` shows a single `Free` line
 instead. `Hide card` removes the card until a paid model is selected.
 
 `Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
