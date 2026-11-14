@@ -52,6 +52,15 @@ export const modelTweak = defineTweak({
       default: true,
     },
     {
+      id: "align",
+      title: "Price alignment",
+      description: "Start the prices on one column, or push them against the right edge.",
+      category: "Display",
+      kind: "select",
+      default: "left",
+      values: ["left", "right"],
+    },
+    {
       id: "peakOnly",
       title: "Peak only",
       description: "Hide the multiplier while the model bills at its base price.",

@@ -20,6 +20,7 @@ const OUTPUT = setting("output")
 const CACHE = setting("cache")
 const PEAK = setting("peak")
 const PEAK_ONLY = setting("peakOnly")
+const ALIGN = setting("align")
 
 /** The ref stored on a session or returned by the composer. */
 interface ModelRef {
@@ -60,6 +61,7 @@ function ModelBody(props: {
   const cacheOn = () => props.store.read(modelTweak, CACHE).value === true
   const peakOn = () => props.store.read(modelTweak, PEAK).value === true
   const peakOnly = () => props.store.read(modelTweak, PEAK_ONLY).value === true
+  const alignRight = () => props.store.read(modelTweak, ALIGN).value === "right"
 
   /** The session's model, or the composer's while the session has none yet. */
   const model = createMemo<ModelRef | undefined>(() => {
@@ -173,9 +175,13 @@ function ModelBody(props: {
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
           <For each={rates()}>
             {(row) => (
-              <box flexDirection="row" gap={1}>
+              <box
+                flexDirection="row"
+                justifyContent={alignRight() ? "space-between" : "flex-start"}
+                gap={1}
+              >
                 <text flexShrink={0} fg={theme().text.base}>
-                  {row.label.padEnd(labelWidth())}
+                  {alignRight() ? row.label : row.label.padEnd(labelWidth())}
                 </text>
                 <text flexShrink={0} fg={row.muted ? theme().text.muted : theme().hue.accent[200]}>
                   {row.value}
