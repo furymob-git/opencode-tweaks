@@ -202,7 +202,8 @@ already sit on the bottom bar, so the card only carries the rates and the peak s
 collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
-draws them as an aligned price list, `Input` through `Cache`, with the value in the theme accent. It uses the catalog
+draws them as a price list with the labels on the left and the values in the theme accent. `Price alignment` picks
+whether the prices start on one shared column (`left`) or sit against the right edge (`right`). It uses the catalog
 price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
 (`>512K`).
 
