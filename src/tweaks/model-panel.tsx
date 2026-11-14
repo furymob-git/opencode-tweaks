@@ -119,6 +119,18 @@ function ModelBody(props: {
     return rows
   })
 
+  /**
+   * A free model bills zero on every rate. Three zeroes read like missing
+   * data, so the card states the price instead of drawing them.
+   */
+  const free = createMemo(() => {
+    if (!inputOn() && !outputOn() && !cacheOn()) return false
+
+    const value = price()
+    if (!value) return false
+    return value.input === 0 && value.output === 0 && value.cache.read === 0
+  })
+
   /** The widest label, so the prices start on one column. */
   const labelWidth = createMemo(() =>
     rates().reduce((width, row) => Math.max(width, row.label.length), 0),
@@ -171,22 +183,34 @@ function ModelBody(props: {
       </box>
       <Show when={!collapsed()}>
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
-          <For each={rates()}>
-            {(row) => (
-              <box
-                flexDirection="row"
-                justifyContent={alignRight() ? "space-between" : "flex-start"}
-                gap={1}
-              >
-                <text flexShrink={0} fg={theme().text.base}>
-                  {alignRight() ? row.label : row.label.padEnd(labelWidth())}
-                </text>
-                <text flexShrink={0} fg={row.muted ? theme().text.muted : theme().hue.accent[200]}>
-                  {row.value}
-                </text>
-              </box>
-            )}
-          </For>
+          <Show
+            when={!free()}
+            fallback={
+              <text fg={theme().hue.accent[200]} attributes={TextAttributes.BOLD}>
+                Free
+              </text>
+            }
+          >
+            <For each={rates()}>
+              {(row) => (
+                <box
+                  flexDirection="row"
+                  justifyContent={alignRight() ? "space-between" : "flex-start"}
+                  gap={1}
+                >
+                  <text flexShrink={0} fg={theme().text.base}>
+                    {alignRight() ? row.label : row.label.padEnd(labelWidth())}
+                  </text>
+                  <text
+                    flexShrink={0}
+                    fg={row.muted ? theme().text.muted : theme().hue.accent[200]}
+                  >
+                    {row.value}
+                  </text>
+                </box>
+              )}
+            </For>
+          </Show>
         </Show>
       </Show>
     </box>

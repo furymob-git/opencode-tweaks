@@ -206,7 +206,7 @@ header to collapse or expand it.
 draws them as a price list with the labels on the left and the values in the theme accent. `Price alignment` picks
 whether the prices start on one shared column (`left`) or sit against the right edge (`right`). It uses the catalog
 price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
-(`>512K`).
+(`>512K`). A model that bills nothing, such as a free promo, shows a single `Free` line instead of three zero rates.
 
 `Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
 DeepSeek and OpenCode Go: `×2` in the warning colour during the higher window and `×1` in the normal text colour off
