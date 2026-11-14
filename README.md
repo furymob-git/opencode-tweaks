@@ -198,8 +198,9 @@ The cost settings used to live in the Tokens entry. A choice saved there before 
 ### Model
 
 Model shows the current model's list price in the sidebar, under the quota. The model name, provider, and variant
-already sit on the bottom bar, so the card only carries the rates and the peak state. Click the `Model` header to
-collapse or expand it.
+already sit on the bottom bar, so the card only carries the rates and the peak state. The rates follow the prompt's
+selected model, so picking another one in `/models` updates them at once, before the next turn. Click the `Model`
+header to collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
 draws them as a price list with the labels on the left and the values in the theme accent. `Price alignment` picks
