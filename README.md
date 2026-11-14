@@ -208,9 +208,10 @@ price that applies to the session's context, so a long-context tier shows the hi
 (`>512K`).
 
 `Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
-DeepSeek and OpenCode Go: `Mult ×2` during the higher window and `Mult ×1` off it. A model without a schedule shows
-nothing. The label stays visible when the card is collapsed. `Peak only` hides `Mult ×1`, so the header stays empty
-at the base price. The badge on the turn cost still records the window each round started in.
+DeepSeek and OpenCode Go: `×2` in the warning colour during the higher window and `×1` in the normal text colour off
+it. A model without a schedule shows nothing. The marker stays visible when the card is collapsed. `Peak only` hides
+`×1`, so the header stays empty at the base price. The badge on the turn cost still records the window each round
+started in.
 
 ## Development
 
