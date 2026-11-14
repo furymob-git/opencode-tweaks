@@ -1,3 +1,5 @@
+import type { UsageMessage } from "./messages"
+
 /** The provider and model a message belongs to. */
 export interface PriceModel {
   readonly providerID: string
@@ -133,4 +135,23 @@ export function priceWindowFor(model: PriceModel | undefined, at: Date): PriceWi
 /** The short text shown beside a cost, such as `peak ×2`. */
 export function formatPriceWindow(window: PriceWindow): string {
   return `${window.label} ×${window.multiplier}`
+}
+
+/**
+ * The window that applied to a round, from the step that started it. Each
+ * request is billed when it starts, so a round that ran during peak keeps its
+ * marker after the window closes. Only assistant steps carry a start time.
+ */
+export function turnPriceWindow(
+  messages: readonly UsageMessage[],
+  fallback?: PriceModel,
+): PriceWindow | undefined {
+  const step = messages.find(
+    (message) => message.type === "assistant" && message.time?.created !== undefined,
+  )
+  const created = step?.time?.created
+  const model = step?.model ?? fallback
+  if (!model || created === undefined) return undefined
+
+  return priceWindowFor(model, new Date(created))
 }
