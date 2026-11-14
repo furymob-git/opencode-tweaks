@@ -97,12 +97,16 @@ function ModelBody(props: {
     const value = price()
     if (!value) return []
 
-    const rows: { label: string; value: string }[] = []
-    if (inputOn()) rows.push({ label: "in", value: formatRate(value.input) })
-    if (outputOn()) rows.push({ label: "out", value: formatRate(value.output) })
-    if (cacheOn()) rows.push({ label: "cache", value: formatRate(value.cache.read) })
+    const rows: { label: string; value: string; muted?: boolean }[] = []
+    if (inputOn()) rows.push({ label: "Input", value: formatRate(value.input) })
+    if (outputOn()) rows.push({ label: "Output", value: formatRate(value.output) })
+    if (cacheOn()) rows.push({ label: "Cache", value: formatRate(value.cache.read) })
     if (rows.length > 0 && value.tier) {
-      rows.push({ label: "from", value: `>${formatTokens(value.tier.size, "compact")}` })
+      rows.push({
+        label: "From",
+        value: `>${formatTokens(value.tier.size, "compact")}`,
+        muted: true,
+      })
     }
 
     return rows
@@ -158,11 +162,16 @@ function ModelBody(props: {
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
           <For each={rates()}>
             {(row) => (
-              <box flexDirection="row" gap={1}>
-                <text flexShrink={0} fg={theme().text.muted}>
-                  {row.label.padEnd(5)}
+              <box flexDirection="row" justifyContent="space-between" gap={1}>
+                <text flexShrink={0} fg={theme().text.base}>
+                  {row.label}
                 </text>
-                <text fg={theme().text.base}>{row.value}</text>
+                <text flexShrink={0} fg={row.muted ? theme().text.muted : theme().hue.accent[200]}>
+                  {row.value}
+                  <Show when={!row.muted}>
+                    <span style={{ fg: theme().text.muted }}>/M</span>
+                  </Show>
+                </text>
               </box>
             )}
           </For>
