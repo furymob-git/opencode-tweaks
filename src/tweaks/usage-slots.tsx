@@ -10,7 +10,7 @@ import {
   priceFor,
 } from "../usage/cost"
 import { footerMessage, replyTurnMessages, type UsageMessage } from "../usage/messages"
-import { formatPriceWindow, type PriceModel, priceWindowFor } from "../usage/price-window"
+import { formatPriceWindow, type PriceModel, turnPriceWindow } from "../usage/price-window"
 import { formatTokens, sessionTokens, type TokenCount, usageTokens } from "../usage/tokens"
 import { costTweak } from "./cost"
 import type { SettingsStore } from "./settings"
@@ -83,19 +83,6 @@ function useUsage(props: {
   const messages = (sessionID: string) => props.context.data.session.message.list(sessionID) ?? []
 
   const sessions = props.context.data.session
-
-  const [now, setNow] = createSignal(Date.now())
-
-  // The badge follows the clock, not the transcript: a line that stays on
-  // screen across a rate change has to update on its own. The timer exists
-  // only while the cost tweak and its price windows are on.
-  createEffect(() => {
-    if (!costOn() || !windowsOn() || (!promptCost() && !totalCost())) return
-
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 30_000)
-    onCleanup(() => clearInterval(timer))
-  })
 
   // List prices come from the model catalog the TUI already synced, so an
   // estimate costs nothing but a lookup.
@@ -205,27 +192,17 @@ function useUsage(props: {
     return sessions.get(sessionID)?.model ?? lastModel(messages(sessionID))
   }
 
-  /** The higher price that applies right now, when the cost figures are on. */
-  const windowFor = (model: PriceModel | undefined) =>
-    costOn() && windowsOn() ? priceWindowFor(model, new Date(now())) : undefined
-
   const promptCostLabel = () => {
     const value = cost()
     if (!costOn() || !promptCost() || value === undefined) return undefined
 
     const label = formatCost(value, costDigits())
-    const window = windowFor(lastModel(turn()) ?? sessionModel())
+    const window = windowsOn() ? turnPriceWindow(turn(), sessionModel()) : undefined
     return window ? `${label} · ${formatPriceWindow(window)}` : label
   }
 
-  const totalCostLabel = () => {
-    if (!costOn() || !totalCost()) return undefined
-
-    const value = sessionCost()
-    const label = formatCost(value, costDigits())
-    const window = value > 0 ? windowFor(sessionModel()) : undefined
-    return window ? `${label} · ${formatPriceWindow(window)}` : label
-  }
+  const totalCostLabel = () =>
+    costOn() && totalCost() ? formatCost(sessionCost(), costDigits()) : undefined
 
   return {
     enabled: () => tokensOn() || costOn(),

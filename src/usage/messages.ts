@@ -13,6 +13,8 @@ export interface UsageMessage {
   readonly tokens?: MessageTokens
   readonly cost?: number
   readonly model?: { readonly providerID: string; readonly id: string }
+  /** When the step was created, which is when the provider started billing it. */
+  readonly time?: { readonly created?: number }
   /** How the step ended; the host only draws a footer for a finished one. */
   readonly finish?: string | null
   readonly error?: unknown

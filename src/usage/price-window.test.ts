@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { formatPriceWindow, priceWindowFor } from "./price-window"
+import { formatPriceWindow, priceWindowFor, turnPriceWindow } from "./price-window"
 
 const at = (value: string) => new Date(value)
 const flash = { providerID: "deepseek", id: "deepseek-flash" }
 const goFlash = { providerID: "opencode-go", id: "deepseek-v4.1-flash" }
+const step = (created: string, model = flash) => ({
+  type: "assistant",
+  model,
+  time: { created: Date.parse(created) },
+})
 
 describe("priceWindowFor", () => {
   it("marks both peak windows on a weekday", () => {
@@ -72,6 +77,54 @@ describe("priceWindowFor", () => {
       ),
     ).toBeUndefined()
     expect(priceWindowFor(undefined, at("2026-11-16T02:00:00Z"))).toBeUndefined()
+  })
+})
+
+describe("turnPriceWindow", () => {
+  it("marks a round that started in a peak window", () => {
+    expect(turnPriceWindow([{ type: "user" }, step("2026-11-16T02:00:00Z")])).toEqual({
+      label: "peak",
+      multiplier: 2,
+    })
+  })
+
+  it("keeps the marker after the window closes", () => {
+    expect(turnPriceWindow([step("2026-11-16T02:00:00Z")])).toEqual({
+      label: "peak",
+      multiplier: 2,
+    })
+  })
+
+  it("uses the first assistant step as the round start", () => {
+    expect(turnPriceWindow([step("2026-11-16T02:00:00Z"), step("2026-11-16T04:30:00Z")])).toEqual({
+      label: "peak",
+      multiplier: 2,
+    })
+  })
+
+  it("leaves a round that started off-peak unmarked", () => {
+    expect(turnPriceWindow([step("2026-11-16T12:00:00Z")])).toBeUndefined()
+  })
+
+  it("skips a step without a start time", () => {
+    expect(turnPriceWindow([{ type: "assistant" }, step("2026-11-16T02:00:00Z")])).toEqual({
+      label: "peak",
+      multiplier: 2,
+    })
+  })
+
+  it("falls back to the session model when the step has none", () => {
+    expect(
+      turnPriceWindow(
+        [{ type: "assistant", time: { created: Date.parse("2026-11-16T02:00:00Z") } }],
+        flash,
+      ),
+    ).toEqual({ label: "peak", multiplier: 2 })
+  })
+
+  it("needs a start time", () => {
+    expect(turnPriceWindow([{ type: "assistant", model: flash }])).toBeUndefined()
+    expect(turnPriceWindow([], flash)).toBeUndefined()
   })
 })
 
