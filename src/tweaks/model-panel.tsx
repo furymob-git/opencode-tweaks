@@ -154,22 +154,17 @@ function ModelBody(props: {
 
   return (
     <box flexDirection="column">
-      <box
-        flexDirection="row"
-        justifyContent="space-between"
-        onMouseUp={() => setCollapsed((value) => !value)}
-      >
+      <box flexDirection="row" onMouseUp={() => setCollapsed((value) => !value)}>
         <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
           {collapsed() ? "▶" : "▼"} Model
-        </text>
-        <Show when={state()}>
-          <text
-            fg={multiplier() > 1 ? theme().text.feedback.warning.base : theme().text.muted}
-            wrapMode="none"
+          <span
+            style={{
+              fg: multiplier() > 1 ? theme().text.feedback.warning.base : theme().text.muted,
+            }}
           >
-            {state()}
-          </text>
-        </Show>
+            {state() ? ` ${state()}` : ""}
+          </span>
+        </text>
       </box>
       <Show when={!collapsed()}>
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
