@@ -27,10 +27,15 @@ jobs:
       - name: Publish to npm
         run: |
           version=$(node -p "require('./package.json').version")
-          if npm view "opencode-tweaks@$version" version > /dev/null 2>&1; then
+          echo "npm $(npm --version), package version $version"
+          # `npm view` can exit 0 for a missing version, so compare the output
+          # instead of trusting the exit code.
+          published=$(npm view "opencode-tweaks@$version" version 2>/dev/null || true)
+          echo "registry version: ${published:-<missing>}"
+          if [ "$published" = "$version" ]; then
             echo "opencode-tweaks@$version is already published"
           else
-            npm publish
+            npm publish --provenance
           fi
       - name: Create or update the GitHub release
         run: |
