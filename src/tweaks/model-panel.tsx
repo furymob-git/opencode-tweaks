@@ -156,7 +156,7 @@ function ModelBody(props: {
   })
 
   return (
-    <box flexDirection="column" marginTop={1}>
+    <box flexDirection="column">
       <box
         flexDirection="row"
         justifyContent="space-between"
@@ -166,7 +166,7 @@ function ModelBody(props: {
           {collapsed() ? "▶" : "▼"} Model
         </text>
         <Show when={entry()?.provider}>
-          <text fg={theme().text.muted} wrapMode="none">
+          <text attributes={TextAttributes.BOLD} fg={theme().text.base} wrapMode="none">
             {entry()?.provider}
           </text>
         </Show>
