@@ -19,6 +19,7 @@ const INPUT = setting("input")
 const OUTPUT = setting("output")
 const CACHE = setting("cache")
 const PEAK = setting("peak")
+const PEAK_ONLY = setting("peakOnly")
 
 /** The ref stored on a session or returned by the composer. */
 interface ModelRef {
@@ -58,6 +59,7 @@ function ModelBody(props: {
   const outputOn = () => props.store.read(modelTweak, OUTPUT).value === true
   const cacheOn = () => props.store.read(modelTweak, CACHE).value === true
   const peakOn = () => props.store.read(modelTweak, PEAK).value === true
+  const peakOnly = () => props.store.read(modelTweak, PEAK_ONLY).value === true
 
   /** The session's model, or the composer's while the session has none yet. */
   const model = createMemo<ModelRef | undefined>(() => {
@@ -112,6 +114,11 @@ function ModelBody(props: {
     return rows
   })
 
+  /** The widest label, so the prices start on one column. */
+  const labelWidth = createMemo(() =>
+    rates().reduce((width, row) => Math.max(width, row.label.length), 0),
+  )
+
   const scheduled = () => {
     const ref = model()
     return ref ? hasPriceSchedule(ref) : false
@@ -123,10 +130,14 @@ function ModelBody(props: {
     return priceWindowFor(ref, new Date(now()))
   }
 
+  /** The higher price the provider charges right now, or base price as `1`. */
+  const multiplier = () => peak()?.multiplier ?? 1
+
   const state = () => {
     if (!peakOn() || !scheduled()) return undefined
-    const value = peak()
-    return value ? `${value.label} ×${value.multiplier} now` : "off-peak"
+    const value = multiplier()
+    if (value === 1 && peakOnly()) return undefined
+    return `×${value}`
   }
 
   // The live peak marker follows the clock, so refresh it while the card can
@@ -151,7 +162,7 @@ function ModelBody(props: {
         </text>
         <Show when={state()}>
           <text
-            fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}
+            fg={multiplier() > 1 ? theme().text.feedback.warning.base : theme().text.muted}
             wrapMode="none"
           >
             {state()}
@@ -162,15 +173,12 @@ function ModelBody(props: {
         <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
           <For each={rates()}>
             {(row) => (
-              <box flexDirection="row" justifyContent="space-between" gap={1}>
+              <box flexDirection="row" gap={1}>
                 <text flexShrink={0} fg={theme().text.base}>
-                  {row.label}
+                  {row.label.padEnd(labelWidth())}
                 </text>
                 <text flexShrink={0} fg={row.muted ? theme().text.muted : theme().hue.accent[200]}>
                   {row.value}
-                  <Show when={!row.muted}>
-                    <span style={{ fg: theme().text.muted }}>/M</span>
-                  </Show>
                 </text>
               </box>
             )}

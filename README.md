@@ -202,13 +202,14 @@ already sit on the bottom bar, so the card only carries the rates and the peak s
 collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
-draws them as a right-aligned price list, `Input` through `Cache`, with the value in the theme accent and a muted `/M`
-unit. It uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate
-with its threshold (`>512K`).
+draws them as an aligned price list, `Input` through `Cache`, with the value in the theme accent. It uses the catalog
+price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
+(`>512K`).
 
-`Peak state` adds the provider's live peak marker for schedules the plugin knows, such as DeepSeek and OpenCode Go:
-`peak ×2 now` during the higher window and `off-peak` otherwise; it stays visible when the card is collapsed. The
-badge on the turn cost still records the window each round started in.
+`Peak state` puts the provider's live multiplier in the card header for schedules the plugin knows, such as DeepSeek
+and OpenCode Go: `×2` during the higher window, `×1` off it, and nothing for a model without a schedule. It stays
+visible when the card is collapsed. `Peak only` hides the marker while the multiplier is `×1`, so the header stays
+quiet at the base price. The badge on the turn cost still records the window each round started in.
 
 ## Development
 
