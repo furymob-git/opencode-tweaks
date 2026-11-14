@@ -100,6 +100,7 @@ Resetting a setting drops the local value, so the option or default applies agai
 | `quota`  | Provider quota, reset times, and a daily spending budget. | On      |
 | `tokens` | Token usage per turn, plus session totals at the bottom.  | On      |
 | `cost`   | Cost per turn, plus session totals at the bottom.         | On      |
+| `model`  | Current model list price and peak state in the sidebar.   | On      |
 
 ### Quota
 
@@ -194,6 +195,19 @@ per turn, and the estimate follows the API rates instead. Costs use the raw coun
 
 The cost settings used to live in the Tokens entry. A choice saved there before the split keeps applying.
 
+### Model
+
+Model shows the model the session is using and its list price in the sidebar, under the quota. The name, provider,
+and reasoning variant come from the session, so the card follows `/models`.
+
+`Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
+uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate with its
+threshold (`>512K`).
+
+`Peak state` adds the provider's live peak marker for schedules the plugin knows, such as DeepSeek and OpenCode Go:
+`peak ×2 now` during the higher window and `off-peak` otherwise. The badge on the turn cost still records the window
+each round started in.
+
 ## Development
 
 ```sh
@@ -232,6 +246,8 @@ src/
     quota-panel.tsx sidebar quota panel
     tokens.ts       token tweak definition
     cost.ts         cost tweak definition
+    model.ts        model tweak definition
+    model-panel.tsx sidebar model price card
     usage-slots.tsx inline and status line figures
     usage-inject.ts splice into the host's lines
 ```

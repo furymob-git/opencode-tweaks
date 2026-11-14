@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { formatPriceWindow, priceWindowFor, turnPriceWindow } from "./price-window"
+import {
+  formatPriceWindow,
+  hasPriceSchedule,
+  priceWindowFor,
+  turnPriceWindow,
+} from "./price-window"
 
 const at = (value: string) => new Date(value)
 const flash = { providerID: "deepseek", id: "deepseek-flash" }
@@ -77,6 +82,19 @@ describe("priceWindowFor", () => {
       ),
     ).toBeUndefined()
     expect(priceWindowFor(undefined, at("2026-11-16T02:00:00Z"))).toBeUndefined()
+  })
+})
+
+describe("hasPriceSchedule", () => {
+  it("knows DeepSeek and OpenCode Go models follow the peak schedule", () => {
+    expect(hasPriceSchedule(flash)).toBe(true)
+    expect(hasPriceSchedule(goFlash)).toBe(true)
+  })
+
+  it("leaves other providers and models alone", () => {
+    expect(hasPriceSchedule({ providerID: "opencode-go", id: "kimi-k3" })).toBe(false)
+    expect(hasPriceSchedule({ providerID: "openrouter", id: "deepseek/flash" })).toBe(false)
+    expect(hasPriceSchedule(undefined)).toBe(false)
   })
 })
 
