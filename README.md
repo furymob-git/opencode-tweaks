@@ -33,7 +33,19 @@ configuration format may change before the first stable release.
 opencode plugin add opencode-tweaks
 ```
 
-Or add it to the `plugins` list in `opencode.json`:
+Or let OpenCode install and verify it for you. Paste this prompt into a session:
+
+```text
+Install the opencode-tweaks plugin on this machine.
+
+- Run `opencode --version` first and stop with a clear message if it is not 2.x.
+- Run `opencode plugin add opencode-tweaks`.
+- Run `opencode plugin list` and confirm opencode-tweaks is registered.
+- Tell me the plugin version, the config file that changed, and anything I need to restart.
+- Do not edit my existing settings or plugin options.
+```
+
+To add it by hand, put it in the `plugins` list in `opencode.json`:
 
 ```jsonc
 {
