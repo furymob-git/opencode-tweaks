@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { costTweak } from "./cost"
 import { quotaTweak } from "./quota"
 import { tokensTweak } from "./tokens"
 import {
@@ -76,6 +77,15 @@ describe("defineTweak", () => {
     expect(() => defineTweak(tweak([{ ...width, default: 20 }]))).toThrow(
       "default outside its range",
     )
+  })
+
+  it("rejects a legacy mapping for a setting that does not exist", () => {
+    expect(() =>
+      defineTweak({
+        ...tweak([toggle]),
+        legacy: { id: "old", settings: { missing: "enabled" } },
+      }),
+    ).toThrow("Legacy setting")
   })
 })
 
@@ -228,15 +238,43 @@ describe("tokensTweak", () => {
     expect(defaults).toEqual({
       enabled: true,
       prompt: true,
-      promptCost: true,
       total: true,
-      totalCost: true,
       format: "compact",
-      costDigits: "auto",
       ttft: false,
       count: "generated",
       subagents: true,
-      estimateCost: true,
+    })
+  })
+
+  it("keeps no cost setting", () => {
+    expect(tokensTweak.settings.map((setting) => setting.id)).not.toContain("promptCost")
+  })
+})
+
+describe("costTweak", () => {
+  it("turns every figure on by default", () => {
+    const defaults = Object.fromEntries(
+      costTweak.settings.map((setting) => [setting.id, setting.default]),
+    )
+
+    expect(defaults).toEqual({
+      enabled: true,
+      prompt: true,
+      total: true,
+      digits: "auto",
+      estimate: true,
+    })
+  })
+
+  it("reads the choices stored under the token tweak", () => {
+    expect(costTweak.legacy).toEqual({
+      id: "tokens",
+      settings: {
+        prompt: "promptCost",
+        total: "totalCost",
+        digits: "costDigits",
+        estimate: "estimateCost",
+      },
     })
   })
 })

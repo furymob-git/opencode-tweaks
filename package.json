@@ -23,7 +23,8 @@
     "tui",
     "settings",
     "quota",
-    "tokens"
+    "tokens",
+    "cost"
   ],
   "exports": {
     ".": "./src/index.ts",
