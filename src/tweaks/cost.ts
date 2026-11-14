@@ -60,8 +60,7 @@ export const costTweak = defineTweak({
     {
       id: "windows",
       title: "Price windows",
-      description:
-        "Mark when the provider charges more than the catalog price, such as DeepSeek peak hours.",
+      description: "Mark rounds billed above the catalog price, such as DeepSeek peak hours.",
       category: "Display",
       kind: "boolean",
       default: true,
