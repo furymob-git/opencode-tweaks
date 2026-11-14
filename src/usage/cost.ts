@@ -85,6 +85,15 @@ export function isCostDigits(value: unknown): value is CostDigits {
   return value === "auto" || value === 2 || value === 3 || value === 4 || value === 5 || value === 6
 }
 
+/**
+ * A list rate per million tokens. Normal rates keep two decimals; sub-cent
+ * rates show up to six and drop trailing zeros, so `$0.003` stays readable.
+ */
+export function formatRate(value: number): string {
+  if (value >= 0.01) return `$${value.toFixed(2)}`
+  return `$${value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`
+}
+
 /** Normal amounts keep two decimals; smaller ones grow until a digit shows. */
 function autoDigits(cost: number): number {
   if (cost === 0 || cost >= 0.01) return 2

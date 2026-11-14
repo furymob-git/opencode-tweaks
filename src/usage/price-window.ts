@@ -107,6 +107,19 @@ function utcMinutes(date: Date): number {
   return date.getUTCHours() * 60 + date.getUTCMinutes()
 }
 
+/** The schedule a model follows, when its provider publishes one. */
+function scheduleFor(model: PriceModel): PriceSchedule | undefined {
+  return schedules.find(
+    (candidate) =>
+      candidate.providers.includes(model.providerID) && model.id.startsWith(candidate.modelPrefix),
+  )
+}
+
+/** Whether the model follows a published peak schedule, even off-peak. */
+export function hasPriceSchedule(model: PriceModel | undefined): boolean {
+  return model ? scheduleFor(model) !== undefined : false
+}
+
 /**
  * The higher price that applies to a model at `at`, or `undefined` when the
  * catalog price is the one being charged. The check is deliberately narrow:
@@ -115,10 +128,7 @@ function utcMinutes(date: Date): number {
 export function priceWindowFor(model: PriceModel | undefined, at: Date): PriceWindow | undefined {
   if (!model) return undefined
 
-  const schedule = schedules.find(
-    (candidate) =>
-      candidate.providers.includes(model.providerID) && model.id.startsWith(candidate.modelPrefix),
-  )
+  const schedule = scheduleFor(model)
   if (!schedule) return undefined
 
   if (!schedule.peakDays.includes(weekday(at))) return undefined

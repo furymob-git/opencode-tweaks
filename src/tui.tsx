@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { openTweaksMenu } from "./tweaks/menu"
+import { ModelPanel } from "./tweaks/model-panel"
 import { QuotaPanel } from "./tweaks/quota-panel"
 import { createSettingsStore } from "./tweaks/settings"
 import { createUsageInjector } from "./tweaks/usage-inject"
@@ -15,6 +16,11 @@ export default Plugin.define({
     context.ui.slot({
       append: "sidebar.content",
       render: () => <QuotaPanel context={context} store={store} />,
+    })
+
+    context.ui.slot({
+      append: "sidebar.content",
+      render: (input) => <ModelPanel context={context} input={input} store={store} />,
     })
 
     context.ui.slot({

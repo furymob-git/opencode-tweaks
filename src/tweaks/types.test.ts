@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { costTweak } from "./cost"
+import { modelTweak } from "./model"
 import { quotaTweak } from "./quota"
 import { tokensTweak } from "./tokens"
 import {
@@ -276,6 +277,23 @@ describe("costTweak", () => {
         digits: "costDigits",
         estimate: "estimateCost",
       },
+    })
+  })
+})
+
+describe("modelTweak", () => {
+  it("shows every rate and the peak state by default", () => {
+    const defaults = Object.fromEntries(
+      modelTweak.settings.map((setting) => [setting.id, setting.default]),
+    )
+
+    expect(defaults).toEqual({
+      enabled: true,
+      input: true,
+      output: true,
+      cache: true,
+      variant: true,
+      peak: true,
     })
   })
 })
