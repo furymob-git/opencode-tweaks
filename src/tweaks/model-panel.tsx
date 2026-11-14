@@ -63,13 +63,16 @@ function ModelBody(props: {
   const peakOnly = () => props.store.read(modelTweak, PEAK_ONLY).value === true
   const alignRight = () => props.store.read(modelTweak, ALIGN).value === "right"
 
-  /** The session's model, or the composer's while the session has none yet. */
+  /**
+   * The model the next prompt would use, read from the prompt selection so a
+   * switch in `/models` shows its rates at once. The session only supplies a
+   * model for a transcript opened without a prompt of its own.
+   */
   const model = createMemo<ModelRef | undefined>(() => {
-    const session = props.context.data.session.get(props.input.sessionID)
-    if (session?.model) return session.model
-
     const current = props.context.ui.model.current()
-    return current ? { providerID: current.providerID, id: current.modelID } : undefined
+    if (current) return { providerID: current.providerID, id: current.modelID }
+
+    return props.context.data.session.get(props.input.sessionID)?.model
   })
 
   /** The catalog rates for that model, when the catalog knows it. */
