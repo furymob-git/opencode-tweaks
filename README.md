@@ -198,7 +198,8 @@ The cost settings used to live in the Tokens entry. A choice saved there before 
 ### Model
 
 Model shows the model the session is using and its list price in the sidebar, under the quota. The name, provider,
-and reasoning variant come from the session, so the card follows `/models`.
+and reasoning variant come from the session, so the card follows `/models`. Click the `Model` header to collapse or
+expand the card.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
 uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate with its
