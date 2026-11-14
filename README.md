@@ -207,10 +207,10 @@ whether the prices start on one shared column (`left`) or sit against the right 
 price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
 (`>512K`).
 
-`Peak state` puts the provider's live multiplier on the right of the card header for schedules the plugin knows, such
-as DeepSeek and OpenCode Go: `peak ×2` during the higher window and `off-peak ×1` off it. A model without a schedule
-shows neither. The marker stays visible when the card is collapsed. `Peak only` hides the `off-peak ×1` marker, so the
-header stays empty at the base price. The badge on the turn cost still records the window each round started in.
+`Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
+DeepSeek and OpenCode Go: `Mult ×2` during the higher window and `Mult ×1` off it. A model without a schedule shows
+nothing. The label stays visible when the card is collapsed. `Peak only` hides `Mult ×1`, so the header stays empty
+at the base price. The badge on the turn cost still records the window each round started in.
 
 ## Development
 
