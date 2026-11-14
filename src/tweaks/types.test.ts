@@ -292,8 +292,9 @@ describe("modelTweak", () => {
       input: true,
       output: true,
       cache: true,
-      variant: true,
       peak: true,
+      peakOnly: false,
+      align: "right",
     })
   })
 })

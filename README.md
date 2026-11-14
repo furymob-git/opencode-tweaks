@@ -197,17 +197,21 @@ The cost settings used to live in the Tokens entry. A choice saved there before 
 
 ### Model
 
-Model shows the model the session is using and its list price in the sidebar, under the quota. The name, provider,
-and reasoning variant come from the session, so the card follows `/models`. Click the `Model` header to collapse or
-expand the card.
+Model shows the current model's list price in the sidebar, under the quota. The model name, provider, and variant
+already sit on the bottom bar, so the card only carries the rates and the peak state. Click the `Model` header to
+collapse or expand it.
 
 `Input price`, `Output price`, and `Cache read price` choose the rates, all in dollars per million tokens. The card
-uses the catalog price that applies to the session's context, so a long-context tier shows the higher rate with its
-threshold (`>512K`).
+draws them as a price list with the labels on the left and the values in the theme accent. `Price alignment` picks
+whether the prices start on one shared column (`left`) or sit against the right edge (`right`). It uses the catalog
+price that applies to the session's context, so a long-context tier shows the higher rate with its threshold
+(`>512K`).
 
-`Peak state` adds the provider's live peak marker for schedules the plugin knows, such as DeepSeek and OpenCode Go:
-`peak ×2 now` during the higher window and `off-peak` otherwise. The badge on the turn cost still records the window
-each round started in.
+`Peak state` puts the price multiplier on the right of the card header for schedules the plugin knows, such as
+DeepSeek and OpenCode Go: `×2` in the warning colour during the higher window and `×1` in the normal text colour off
+it. A model without a schedule shows nothing. The marker stays visible when the card is collapsed. `Peak only` hides
+`×1`, so the header stays empty at the base price. The badge on the turn cost still records the window each round
+started in.
 
 ## Development
 

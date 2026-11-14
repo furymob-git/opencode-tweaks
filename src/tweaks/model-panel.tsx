@@ -18,19 +18,20 @@ const ENABLED = setting("enabled")
 const INPUT = setting("input")
 const OUTPUT = setting("output")
 const CACHE = setting("cache")
-const VARIANT = setting("variant")
 const PEAK = setting("peak")
+const PEAK_ONLY = setting("peakOnly")
+const ALIGN = setting("align")
 
 /** The ref stored on a session or returned by the composer. */
 interface ModelRef {
   readonly providerID: string
   readonly id: string
-  readonly variant?: string
 }
 
 /**
- * The model card is a companion to the cost figures: it names the model and
- * lists its catalog rates, while the cost tweak counts what the session spent.
+ * The model card sits under the quota and carries what the bottom bar does
+ * not: the current model's list price and its provider's peak state. The
+ * model name and variant already live on that bar, so the card stays compact.
  */
 export function ModelPanel(props: {
   readonly context: Context
@@ -58,8 +59,9 @@ function ModelBody(props: {
   const inputOn = () => props.store.read(modelTweak, INPUT).value === true
   const outputOn = () => props.store.read(modelTweak, OUTPUT).value === true
   const cacheOn = () => props.store.read(modelTweak, CACHE).value === true
-  const variantOn = () => props.store.read(modelTweak, VARIANT).value === true
   const peakOn = () => props.store.read(modelTweak, PEAK).value === true
+  const peakOnly = () => props.store.read(modelTweak, PEAK_ONLY).value === true
+  const alignRight = () => props.store.read(modelTweak, ALIGN).value === "right"
 
   /** The session's model, or the composer's while the session has none yet. */
   const model = createMemo<ModelRef | undefined>(() => {
@@ -67,31 +69,21 @@ function ModelBody(props: {
     if (session?.model) return session.model
 
     const current = props.context.ui.model.current()
-    return current
-      ? { providerID: current.providerID, id: current.modelID, variant: current.variant }
-      : undefined
+    return current ? { providerID: current.providerID, id: current.modelID } : undefined
   })
 
-  /** The catalog entry for that model, with what the panel needs to show it. */
-  const entry = createMemo(() => {
+  /** The catalog rates for that model, when the catalog knows it. */
+  const costs = createMemo(() => {
     const ref = model()
-    if (!ref) return undefined
+    if (!ref) return []
 
-    const found = (props.context.data.location.model.list() ?? []).find(
-      (candidate) =>
-        candidate.providerID === ref.providerID &&
-        (candidate.modelID === ref.id || candidate.id === ref.id),
+    return (
+      (props.context.data.location.model.list() ?? []).find(
+        (candidate) =>
+          candidate.providerID === ref.providerID &&
+          (candidate.modelID === ref.id || candidate.id === ref.id),
+      )?.cost ?? []
     )
-    const provider = (props.context.data.location.provider.list() ?? []).find(
-      (candidate) => candidate.id === ref.providerID,
-    )
-
-    return {
-      ref,
-      name: found?.name ?? ref.id,
-      provider: provider?.name,
-      costs: found?.cost ?? [],
-    }
   })
 
   /** The context the session has read so far, which picks a long-context tier. */
@@ -101,52 +93,52 @@ function ModelBody(props: {
   })
 
   const price = createMemo(() => {
-    const costs = entry()?.costs
-    return costs?.length ? priceFor(costs, contextSize()) : undefined
+    const list = costs()
+    return list.length > 0 ? priceFor(list, contextSize()) : undefined
   })
 
   const rates = createMemo(() => {
     const value = price()
     if (!value) return []
 
-    const rows: { label: string; value: string }[] = []
-    if (inputOn()) rows.push({ label: "in", value: formatRate(value.input) })
-    if (outputOn()) rows.push({ label: "out", value: formatRate(value.output) })
-    if (cacheOn()) rows.push({ label: "cache", value: formatRate(value.cache.read) })
+    const rows: { label: string; value: string; muted?: boolean }[] = []
+    if (inputOn()) rows.push({ label: "Input", value: formatRate(value.input) })
+    if (outputOn()) rows.push({ label: "Output", value: formatRate(value.output) })
+    if (cacheOn()) rows.push({ label: "Cache", value: formatRate(value.cache.read) })
     if (rows.length > 0 && value.tier) {
-      rows.push({ label: "from", value: `>${formatTokens(value.tier.size, "compact")}` })
+      rows.push({
+        label: "From",
+        value: `>${formatTokens(value.tier.size, "compact")}`,
+        muted: true,
+      })
     }
 
     return rows
   })
 
-  const variant = () => (variantOn() ? entry()?.ref.variant : undefined)
-
-  const title = () => {
-    const name = entry()?.name
-    const selected = variant()
-    return selected ? `${name} · ${selected}` : name
-  }
+  /** The widest label, so the prices start on one column. */
+  const labelWidth = createMemo(() =>
+    rates().reduce((width, row) => Math.max(width, row.label.length), 0),
+  )
 
   const scheduled = () => {
-    const ref = entry()?.ref
+    const ref = model()
     return ref ? hasPriceSchedule(ref) : false
   }
 
   const peak = () => {
-    const ref = entry()?.ref
+    const ref = model()
     if (!ref || !peakOn() || !scheduled()) return undefined
     return priceWindowFor(ref, new Date(now()))
   }
 
-  const stateValue = () => {
-    if (!peakOn() || !scheduled()) return undefined
-    const value = peak()
-    return value ? `${value.label} ×${value.multiplier} now` : "off-peak"
-  }
+  /** The price multiplier now, `1` when the catalog price is the one charged. */
+  const multiplier = () => peak()?.multiplier ?? 1
+
+  const showMultiplier = () => peakOn() && scheduled() && (peak() !== undefined || !peakOnly())
 
   // The live peak marker follows the clock, so refresh it while the card can
-  // show one. Models without a schedule and a hidden peak row need no timer.
+  // show one. Models without a schedule and a hidden peak state need no timer.
   createEffect(() => {
     if (!peakOn() || !scheduled()) return
 
@@ -165,37 +157,33 @@ function ModelBody(props: {
         <text attributes={TextAttributes.BOLD} fg={theme().text.base}>
           {collapsed() ? "▶" : "▼"} Model
         </text>
-        <Show when={entry()?.provider}>
-          <text attributes={TextAttributes.BOLD} fg={theme().text.base} wrapMode="none">
-            {entry()?.provider}
+        <Show when={showMultiplier()}>
+          <text
+            fg={peak() ? theme().text.feedback.warning.base : theme().text.base}
+            wrapMode="none"
+          >
+            {`×${multiplier()}`}
           </text>
         </Show>
       </box>
       <Show when={!collapsed()}>
-        <Show when={entry()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
-          <text fg={theme().text.base} wrapMode="word">
-            {title()}
-          </text>
+        <Show when={model()} fallback={<text fg={theme().text.muted}>No model selected</text>}>
           <For each={rates()}>
             {(row) => (
-              <box flexDirection="row" gap={1}>
-                <text flexShrink={0} fg={theme().text.muted}>
-                  {row.label.padEnd(5)}
+              <box
+                flexDirection="row"
+                justifyContent={alignRight() ? "space-between" : "flex-start"}
+                gap={1}
+              >
+                <text flexShrink={0} fg={theme().text.base}>
+                  {alignRight() ? row.label : row.label.padEnd(labelWidth())}
                 </text>
-                <text fg={theme().text.base}>{row.value}</text>
+                <text flexShrink={0} fg={row.muted ? theme().text.muted : theme().hue.accent[200]}>
+                  {row.value}
+                </text>
               </box>
             )}
           </For>
-          <Show when={stateValue()}>
-            <box flexDirection="row" gap={1}>
-              <text flexShrink={0} fg={theme().text.muted}>
-                {"state".padEnd(5)}
-              </text>
-              <text fg={peak() ? theme().text.feedback.warning.base : theme().text.muted}>
-                {stateValue()}
-              </text>
-            </box>
-          </Show>
         </Show>
       </Show>
     </box>
