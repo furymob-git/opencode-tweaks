@@ -44,14 +44,6 @@ export const modelTweak = defineTweak({
       default: true,
     },
     {
-      id: "variant",
-      title: "Variant",
-      description: "Show the reasoning variant selected for the model.",
-      category: "Display",
-      kind: "boolean",
-      default: true,
-    },
-    {
       id: "peak",
       title: "Peak state",
       description: "Show whether the model is billed above its catalog price right now.",
