@@ -158,11 +158,11 @@ function ModelBody(props: {
           {collapsed() ? "▶" : "▼"} Model
         </text>
         <Show when={showMultiplier()}>
-          <text fg={theme().text.base} wrapMode="none">
-            {"Mult "}
-            <span style={{ fg: peak() ? theme().text.feedback.warning.base : theme().text.base }}>
-              {`×${multiplier()}`}
-            </span>
+          <text
+            fg={peak() ? theme().text.feedback.warning.base : theme().text.base}
+            wrapMode="none"
+          >
+            {`×${multiplier()}`}
           </text>
         </Show>
       </box>
