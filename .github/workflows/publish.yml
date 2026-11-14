@@ -45,7 +45,9 @@ jobs:
           git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
           git tag -l --format='%(contents)' "$tag" > release-notes.md
           if gh release view "$tag" > /dev/null 2>&1; then
-            gh release edit "$tag" --notes-file release-notes.md
+            # Deleting a tag turns its release into a draft, so publish it
+            # again instead of leaving the notes invisible.
+            gh release edit "$tag" --draft=false --notes-file release-notes.md
           else
             gh release create "$tag" --title "$tag" --notes-file release-notes.md --verify-tag
           fi
