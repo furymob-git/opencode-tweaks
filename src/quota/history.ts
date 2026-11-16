@@ -96,26 +96,35 @@ export function historySpent(values: readonly (number | undefined)[]): number {
 /**
  * A sparkline for the series. Values are grouped into `buckets` columns when
  * the bar column is narrower than the number of days, so a fixed bar width
- * still shows the whole history. Missing days stay a dot.
+ * still shows the whole history.
+ *
+ * `scale` is the value a full block stands for. Passing the day's allowance
+ * keeps a day comparable between refreshes instead of rescaling the row to
+ * whatever the busiest day happened to be. One percentage point is always the
+ * smallest full-height scale, so a quiet day stays a small bar. Without a
+ * scale the row falls back to its own maximum.
+ *
+ * `gap` is the character for a day with no reading, a space by default.
  */
-export function sparkline(values: readonly (number | undefined)[], buckets: number): string {
+export function sparkline(
+  values: readonly (number | undefined)[],
+  buckets: number,
+  scale?: number,
+  gap = " ",
+): string {
   if (values.length === 0) return ""
 
   const width = Math.max(1, Math.min(Math.round(buckets), values.length))
   const groups = bucketize(values, width)
-  // One percentage point is the smallest scale worth drawing. Without it a
-  // hundredth of a point would fill the row on a quiet day.
-  const top = Math.max(
-    1,
-    groups.reduce<number>(
-      (highest, value) => (value === undefined ? highest : Math.max(highest, value)),
-      0,
-    ),
+  const highest = groups.reduce<number>(
+    (top, value) => (value === undefined ? top : Math.max(top, value)),
+    0,
   )
+  const top = Math.max(1, scale ?? highest)
 
   return groups
     .map((value) => {
-      if (value === undefined) return " "
+      if (value === undefined) return gap
       if (value <= 0) return BLOCKS[0]
 
       const level = Math.max(1, Math.ceil((value / top) * (BLOCKS.length - 1)))

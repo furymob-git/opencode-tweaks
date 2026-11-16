@@ -123,6 +123,15 @@ describe("sparkline", () => {
     expect(sparkline([0.1, 0.1], 2)).toBe("▂▂")
   })
 
+  it("scales against the day's allowance", () => {
+    expect(sparkline([0.1], 1, 3.36)).toBe("▂")
+    expect(sparkline([1, 2], 2, 4)).toBe("▃▅")
+  })
+
+  it("draws a dot for a missing day when asked", () => {
+    expect(sparkline([undefined, 0.1], 2, 1, "·")).toBe("·▂")
+  })
+
   it("groups days into fewer columns", () => {
     expect(sparkline([1, 1, 2, 2], 2)).toBe("▅█")
   })

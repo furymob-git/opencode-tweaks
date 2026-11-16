@@ -60,6 +60,8 @@ const DAILY_BUDGET = setting("dailyBudget")
 const RESERVE = setting("reserve")
 const HISTORY = setting("history")
 const HISTORY_DAYS = setting("historyDays")
+const HISTORY_MISSING = setting("historyMissing")
+const HISTORY_MIN_DAYS = setting("historyMinDays")
 /** Workday settings ordered like `Date#getDay`, with Sunday first. */
 const WORKDAYS = [
   setting("workSun"),
@@ -141,6 +143,13 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     const value = props.store.read(quotaTweak, HISTORY_DAYS).value
     return typeof value === "number" ? value : 7
   })
+  const historyMissing = createMemo(
+    () => props.store.read(quotaTweak, HISTORY_MISSING).value === true,
+  )
+  const historyMinDays = createMemo(() => {
+    const value = props.store.read(quotaTweak, HISTORY_MIN_DAYS).value
+    return typeof value === "number" ? value : 2
+  })
 
   // The day's allowance is frozen at the first reading of the day, so the bar
   // only moves when quota is spent instead of shrinking on every refresh.
@@ -200,19 +209,25 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     const window = longestWindow(snapshot.windows)
     if (!window) return undefined
 
-    const entry = history[paceKey(snapshot.providerID, window.key)]
+    const key = paceKey(snapshot.providerID, window.key)
+    const entry = history[key]
     if (!entry) return undefined
 
     const count = historyCount()
     const values = historySeries(entry, historyDays(now(), count))
-    // One day of readings is only today's partial spend. The row waits for a
-    // second day so the first bar has a baseline to sit against.
-    if (values.filter((value) => value !== undefined).length < 2) return undefined
+    // A partial day alone has no baseline to sit against, so the row waits for
+    // the configured number of days with a reading.
+    const readings = values.filter((value) => value !== undefined).length
+    if (readings < Math.min(historyMinDays(), count)) return undefined
 
     return {
       label: historyLabel(count),
       values,
       spent: historySpent(values),
+      // A full block stands for the day's planned share, with one percentage
+      // point as the smallest scale, so a quiet day stays a small bar.
+      scale: Math.max(1, pace[key]?.allowance ?? 0),
+      gap: historyMissing() ? "·" : " ",
     }
   }
 
@@ -487,6 +502,8 @@ function QuotaSection(props: {
               label={history().label}
               values={history().values}
               spent={history().spent}
+              scale={history().scale}
+              gap={history().gap}
               width={props.width}
               percentWidth={props.percentWidth}
               decimals={props.decimals}
@@ -509,6 +526,8 @@ interface HistoryRow {
   readonly label: string
   readonly values: readonly (number | undefined)[]
   readonly spent: number
+  readonly scale: number
+  readonly gap: string
 }
 
 function paceKey(providerID: string, windowKey: string): string {
@@ -564,6 +583,8 @@ function HistoryLine(props: {
   readonly label: string
   readonly values: readonly (number | undefined)[]
   readonly spent: number
+  readonly scale: number
+  readonly gap: string
   readonly width: number
   readonly percentWidth: number
   readonly decimals: number
@@ -574,9 +595,12 @@ function HistoryLine(props: {
   // Pad to the bar column so the percent stays on the same column as the rows
   // above, even when the series is shorter than the bar.
   const spark = createMemo(() =>
-    sparkline(props.values, Math.max(1, Math.min(props.width, props.values.length))).padEnd(
-      props.width,
-    ),
+    sparkline(
+      props.values,
+      Math.max(1, Math.min(props.width, props.values.length)),
+      props.scale,
+      props.gap,
+    ).padEnd(props.width),
   )
 
   return (
