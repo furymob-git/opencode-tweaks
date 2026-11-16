@@ -176,6 +176,8 @@ describe("quotaTweak", () => {
       "workFri",
       "workSat",
       "workSun",
+      "history",
+      "historyDays",
     ])
   })
 
@@ -227,6 +229,16 @@ describe("quotaTweak", () => {
     expect(width?.kind).toBe("select")
     expect(width?.values).toContain("auto")
     expect(width?.default).toBe("auto")
+  })
+
+  it("draws a week of history by default", () => {
+    const history = quotaTweak.settings.find((setting) => setting.id === "history")
+    const days = quotaTweak.settings.find((setting) => setting.id === "historyDays")
+    expect(history?.kind).toBe("boolean")
+    expect(history?.default).toBe(true)
+    expect(days?.kind).toBe("select")
+    expect(days?.values).toEqual([7, 14])
+    expect(days?.default).toBe(7)
   })
 })
 

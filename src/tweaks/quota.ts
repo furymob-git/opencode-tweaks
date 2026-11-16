@@ -159,5 +159,24 @@ export const quotaTweak = defineTweak({
       kind: "boolean",
       default: true,
     },
+    {
+      id: "history",
+      title: "History",
+      description:
+        "Add a sparkline of the quota spent on each of the last days under the quota rows.",
+      category: "History",
+      kind: "boolean",
+      default: true,
+    },
+    {
+      id: "historyDays",
+      title: "History days",
+      description: "How many calendar days the sparkline covers.",
+      category: "History",
+      kind: "select",
+      default: 7,
+      values: [7, 14],
+      labels: ["7 days", "14 days"],
+    },
   ],
 })
