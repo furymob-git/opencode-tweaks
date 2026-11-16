@@ -445,8 +445,8 @@ function DayRow(props: {
   const shown = () => (props.mode === "used" ? 100 - props.progress.ratio : props.progress.ratio)
   const used = () => 100 - props.progress.ratio
   const color = () => {
-    if (used() >= 100) return theme().text.feedback.low.base
-    if (used() >= 90) return theme().text.feedback.warning.base
+    if (used() >= 100) return theme().text.feedback[FEEDBACK.low].base
+    if (used() >= 90) return theme().text.feedback[FEEDBACK.warning].base
     return theme().hue.accent[200]
   }
   const bar = createMemo(() => barParts(props.rest ? 0 : shown(), props.width))
