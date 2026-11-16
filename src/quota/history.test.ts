@@ -115,8 +115,12 @@ describe("sparkline", () => {
     expect(sparkline([0, 2, 4], 3)).toBe("▁▅█")
   })
 
-  it("keeps missing days as dots", () => {
-    expect(sparkline([undefined, 1], 2)).toBe("·█")
+  it("leaves missing days blank", () => {
+    expect(sparkline([undefined, 1], 2)).toBe(" █")
+  })
+
+  it("keeps a tiny day from filling the row", () => {
+    expect(sparkline([0.1, 0.1], 2)).toBe("▂▂")
   })
 
   it("groups days into fewer columns", () => {
