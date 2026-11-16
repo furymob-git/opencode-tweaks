@@ -97,7 +97,7 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 | Tweak    | What it does                                              | Default |
 | -------- | --------------------------------------------------------- | ------- |
-| `quota`  | Provider quota, reset times, and a daily spending budget. | On      |
+| `quota`  | Provider quota, reset times, a daily budget, and history. | On      |
 | `tokens` | Token usage per turn, plus session totals at the bottom.  | On      |
 | `cost`   | Cost per turn, plus session totals at the bottom.         | On      |
 | `model`  | Current model list price and peak state in the sidebar.   | On      |
@@ -133,6 +133,12 @@ on every refresh.
 `Reserve` keeps a percentage of the window out of the daily budget, so the month does not end at zero. The `Workdays`
 settings choose which weekdays count; every day counts by default, and a day left off gets no budget and shows `rest` on
 the row. The budget resets at local midnight, and a changed provider reset or workday pattern starts a fresh one.
+
+`History` adds a `wk` row under the longest window: a sparkline of the percentage points spent on each of the last seven
+calendar days, with the total on the right. The reading of a day is the last one the panel saw, and a day without a
+reading stays a dot instead of borrowing the previous day's baseline. The row keeps the last 31 days on disk, clears
+when the provider reset moves, and starts again from the first reading of the new window. `History days` switches the
+sparkline between one week (`wk`) and two weeks (`2wk`); a narrower bar column groups the days instead of dropping them.
 
 ### Tokens
 
