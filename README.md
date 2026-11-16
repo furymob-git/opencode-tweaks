@@ -154,9 +154,9 @@ model, so a free plan still shows the API rates. The per-model split sorts by co
 models, with a `+N more` line for the rest. `Window` picks the opening window, and `Per-model split` and
 `Cache hit rate` hide their part of the report. `Enabled` removes `/spend` from the palette and slash completion.
 
-The report covers the sessions the TUI lists, subagents included. A session whose messages are not loaded yet is synced
-when the dialog opens; a failed sync keeps whatever messages were already there, so a session that has never been opened
-may contribute only its loaded turns.
+The report covers the sessions the TUI lists, subagents included, and reads the hundred most recently updated ones in
+the window. A session whose messages are not loaded yet is synced when the dialog opens; a failed sync keeps whatever
+messages were already there, so a session that has never been opened may contribute only its loaded turns.
 
 ### Tokens
 
