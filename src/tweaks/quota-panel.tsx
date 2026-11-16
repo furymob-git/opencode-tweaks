@@ -205,6 +205,10 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
 
     const count = historyCount()
     const values = historySeries(entry, historyDays(now(), count))
+    // One day of readings is only today's partial spend. The row waits for a
+    // second day so the first bar has a baseline to sit against.
+    if (values.filter((value) => value !== undefined).length < 2) return undefined
+
     return {
       label: historyLabel(count),
       values,

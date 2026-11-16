@@ -103,15 +103,20 @@ export function sparkline(values: readonly (number | undefined)[], buckets: numb
 
   const width = Math.max(1, Math.min(Math.round(buckets), values.length))
   const groups = bucketize(values, width)
-  const top = groups.reduce<number>(
-    (highest, value) => (value === undefined ? highest : Math.max(highest, value)),
-    0,
+  // One percentage point is the smallest scale worth drawing. Without it a
+  // hundredth of a point would fill the row on a quiet day.
+  const top = Math.max(
+    1,
+    groups.reduce<number>(
+      (highest, value) => (value === undefined ? highest : Math.max(highest, value)),
+      0,
+    ),
   )
 
   return groups
     .map((value) => {
-      if (value === undefined) return "·"
-      if (value <= 0 || top <= 0) return BLOCKS[0]
+      if (value === undefined) return " "
+      if (value <= 0) return BLOCKS[0]
 
       const level = Math.max(1, Math.ceil((value / top) * (BLOCKS.length - 1)))
       return BLOCKS[Math.min(BLOCKS.length - 1, level)]
