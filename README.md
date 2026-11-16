@@ -137,9 +137,13 @@ the row. The budget resets at local midnight, and a changed provider reset or wo
 
 `History` adds a `wk` row under the longest window: a sparkline of the percentage points spent on each of the last seven
 calendar days, with the total on the right. The reading of a day is the last one the panel saw, and a day without a
-reading stays blank instead of borrowing the previous day's baseline. The row waits for a second day of readings before
-it appears, so a single partial day does not set the scale, and a day below one percentage point stays low instead of
-filling the row. The row keeps the last 31 days on disk, clears when the provider reset moves, and starts again from the
+reading never borrows the previous day's baseline. `Missing days` draws a dot for those days; it is off by default, so
+they stay blank. The row waits for `Minimum days` days with a reading before it appears (two by default), so a single
+partial day does not stand alone.
+
+A full block stands for the day's planned share, with one percentage point as the smallest full-height scale. A quiet
+day therefore stays a small bar even when there is no other reading to compare it with, and a `0.1%` day is never drawn
+as a full row. The row keeps the last 31 days on disk, clears when the provider reset moves, and starts again from the
 first reading of the new window. `History days` switches the sparkline between one week (`wk`) and two weeks (`2wk`); a
 narrower bar column groups the days instead of dropping them.
 

@@ -179,6 +179,8 @@ describe("quotaTweak", () => {
       "workSun",
       "history",
       "historyDays",
+      "historyMissing",
+      "historyMinDays",
     ])
   })
 
@@ -240,6 +242,17 @@ describe("quotaTweak", () => {
     expect(days?.kind).toBe("select")
     expect(days?.values).toEqual([7, 14])
     expect(days?.default).toBe(7)
+  })
+
+  it("hides missing days and waits for two readings by default", () => {
+    const missing = quotaTweak.settings.find((setting) => setting.id === "historyMissing")
+    const minimum = quotaTweak.settings.find((setting) => setting.id === "historyMinDays")
+    expect(missing?.kind).toBe("boolean")
+    expect(missing?.default).toBe(false)
+    expect(minimum?.kind).toBe("number")
+    expect(minimum?.default).toBe(2)
+    expect(minimum?.min).toBe(1)
+    expect(minimum?.max).toBe(14)
   })
 })
 
