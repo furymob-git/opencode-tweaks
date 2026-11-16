@@ -11,8 +11,8 @@ optional, and the defaults stay exactly where they are.
 
 ## Status
 
-Early development. The `/tweaks` menu and the OpenCode Go quota sidebar are in place. Both the tweak list and the
-configuration format may change before the first stable release.
+Early development. The `/tweaks` menu, the OpenCode Go quota sidebar, and the `/spend` report are in place. Both the
+tweak list and the configuration format may change before the first stable release.
 
 ## Principles
 
@@ -98,6 +98,7 @@ Resetting a setting drops the local value, so the option or default applies agai
 | Tweak    | What it does                                              | Default |
 | -------- | --------------------------------------------------------- | ------- |
 | `quota`  | Provider quota, reset times, a daily budget, and history. | On      |
+| `spend`  | `/spend` spending report for recent sessions.             | On      |
 | `tokens` | Token usage per turn, plus session totals at the bottom.  | On      |
 | `cost`   | Cost per turn, plus session totals at the bottom.         | On      |
 | `model`  | Current model list price and peak state in the sidebar.   | On      |
@@ -139,6 +140,23 @@ calendar days, with the total on the right. The reading of a day is the last one
 reading stays a dot instead of borrowing the previous day's baseline. The row keeps the last 31 days on disk, clears
 when the provider reset moves, and starts again from the first reading of the new window. `History days` switches the
 sparkline between one week (`wk`) and two weeks (`2wk`); a narrower bar column groups the days instead of dropping them.
+
+### Spend
+
+`/spend` opens a spending report for the sessions the TUI keeps. It reads the messages the client already synced, so
+it makes no provider call and needs no server endpoint. The dialog shows what today and the selected window cost, the
+generated tokens, the cache hit rate, and how many sessions and turns are in the window. `esc` closes it, `←`/`→`
+switches the window between 7, 14, and 30 days, and `r` reads the sessions again. The chosen window is saved for the
+next report. The command also appears in the palette under `Tweaks`, with id `opencode-tweaks.spend`.
+
+Costs are what the provider reported, with a list-price estimate when it reported nothing and the catalog knows the
+model, so a free plan still shows the API rates. The per-model split sorts by cost and keeps the six most expensive
+models, with a `+N more` line for the rest. `Window` picks the opening window, and `Per-model split` and
+`Cache hit rate` hide their part of the report. `Enabled` removes `/spend` from the palette and slash completion.
+
+The report covers the sessions the TUI lists, subagents included. A session whose messages are not loaded yet is synced
+when the dialog opens; a failed sync keeps whatever messages were already there, so a session that has never been opened
+may contribute only its loaded turns.
 
 ### Tokens
 
@@ -244,7 +262,10 @@ src/
     service.ts      credential lookup and quota fetch
     parse.ts        provider response parsing
     pace.ts         daily budget pacing
+    history.ts      daily readings and the sparkline
     format.ts       percents, reset times, and bars
+  spend/
+    report.ts       window bounds, sums, and per-model split
   usage/
     messages.ts     message shape and turn selection
     tokens.ts       token sums and formatting
@@ -261,6 +282,8 @@ src/
     menu-model.ts   filtering and selection helpers
     quota.ts        quota tweak definition
     quota-panel.tsx sidebar quota panel
+    spend.ts        spend tweak definition
+    spend-dialog.tsx /spend report dialog
     tokens.ts       token tweak definition
     cost.ts         cost tweak definition
     model.ts        model tweak definition

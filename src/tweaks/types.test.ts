@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { costTweak } from "./cost"
 import { modelTweak } from "./model"
 import { quotaTweak } from "./quota"
+import { spendTweak } from "./spend"
 import { tokensTweak } from "./tokens"
 import {
   choicesFor,
@@ -239,6 +240,25 @@ describe("quotaTweak", () => {
     expect(days?.kind).toBe("select")
     expect(days?.values).toEqual([7, 14])
     expect(days?.default).toBe(7)
+  })
+})
+
+describe("spendTweak", () => {
+  it("reports a week with the split and cache rate by default", () => {
+    const defaults = Object.fromEntries(
+      spendTweak.settings.map((setting) => [setting.id, setting.default]),
+    )
+
+    expect(defaults).toEqual({
+      enabled: true,
+      days: 7,
+      models: true,
+      cache: true,
+    })
+
+    const days = spendTweak.settings.find((setting) => setting.id === "days")
+    expect(days?.kind).toBe("select")
+    expect(days?.values).toEqual([7, 14, 30])
   })
 })
 
