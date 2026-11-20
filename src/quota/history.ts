@@ -16,12 +16,12 @@ export interface HistoryEntry {
   readonly days: Readonly<Record<string, HistoryDay>>
 }
 
-/** Days kept on disk. The panel draws at most two weeks of them. */
+/** Days kept on disk. The `/quota` report draws at most a month of them. */
 const KEEP_DAYS = 31
-const BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 
 /**
- * The calendar days a sparkline covers, oldest first and ending today. Walking
+ * The calendar days a report covers, oldest first and ending today. Walking
  * with `setDate` keeps the keys local, so a daylight-saving change cannot skip
  * or repeat a day.
  */
@@ -94,49 +94,22 @@ export function historySpent(values: readonly (number | undefined)[]): number {
 }
 
 /**
- * A sparkline for the series. Values are grouped into `buckets` columns when
- * the bar column is narrower than the number of days, so a fixed bar width
- * still shows the whole history.
- *
- * `scale` is the value a full block stands for. Passing the day's allowance
- * keeps a day comparable between refreshes instead of rescaling the row to
- * whatever the busiest day happened to be. One percentage point is always the
- * smallest full-height scale, so a quiet day stays a small bar. Without a
- * scale the row falls back to its own maximum.
- *
- * `gap` is the character for a day with no reading, a space by default.
+ * A short name for one day of the report: `Today`, `Yest.`, or `Wed 18`.
+ * Comparing keys keeps the label local and daylight-saving safe.
  */
-export function sparkline(
-  values: readonly (number | undefined)[],
-  buckets: number,
-  scale?: number,
-  gap = " ",
-): string {
-  if (values.length === 0) return ""
+export function dayLabel(day: string, today: string): string {
+  if (day === today) return "Today"
 
-  const width = Math.max(1, Math.min(Math.round(buckets), values.length))
-  const groups = bucketize(values, width)
-  const highest = groups.reduce<number>(
-    (top, value) => (value === undefined ? top : Math.max(top, value)),
-    0,
-  )
-  const top = Math.max(1, scale ?? highest)
+  const date = new Date(`${day}T12:00:00`)
+  if (!Number.isFinite(date.getTime())) return day
 
-  return groups
-    .map((value) => {
-      if (value === undefined) return gap
-      if (value <= 0) return BLOCKS[0]
+  const cursor = new Date(`${today}T12:00:00`)
+  if (Number.isFinite(cursor.getTime())) {
+    cursor.setDate(cursor.getDate() - 1)
+    if (day === dayKey(cursor.getTime())) return "Yest."
+  }
 
-      const level = Math.max(1, Math.ceil((value / top) * (BLOCKS.length - 1)))
-      return BLOCKS[Math.min(BLOCKS.length - 1, level)]
-    })
-    .join("")
-}
-
-/** The label that fits the three-column quota label: a week or two weeks. */
-export function historyLabel(days: number): string {
-  if (days >= 28) return "mo"
-  return days >= 14 ? "2wk" : "wk"
+  return `${WEEKDAYS[date.getDay()]} ${date.getDate()}`
 }
 
 /** Drops readings older than the retention window, reusing the record when it can. */
@@ -151,28 +124,6 @@ function pruneDays(
   const next = { ...days }
   for (const key of stale) delete next[key]
   return next
-}
-
-/** Sums contiguous days into exactly `width` groups, keeping empty days empty. */
-function bucketize(
-  values: readonly (number | undefined)[],
-  width: number,
-): Array<number | undefined> {
-  if (width >= values.length) return [...values]
-
-  const groups: Array<number | undefined> = []
-  for (let index = 0; index < width; index++) {
-    const start = Math.floor((index * values.length) / width)
-    const end = Math.floor(((index + 1) * values.length) / width)
-
-    let sum: number | undefined
-    for (let at = start; at < end; at++) {
-      const value = values[at]
-      if (value !== undefined) sum = (sum ?? 0) + value
-    }
-    groups.push(sum)
-  }
-  return groups
 }
 
 function clamp(value: number): number {

@@ -1,6 +1,8 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { openTweaksMenu } from "./tweaks/menu"
 import { ModelPanel } from "./tweaks/model-panel"
+import { quotaSetting, quotaTweak } from "./tweaks/quota"
+import { openQuotaDialog } from "./tweaks/quota-dialog"
 import { QuotaPanel } from "./tweaks/quota-panel"
 import { createSettingsStore } from "./tweaks/settings"
 import { spendSetting, spendTweak } from "./tweaks/spend"
@@ -9,6 +11,7 @@ import { createUsageInjector } from "./tweaks/usage-inject"
 import { UsageInline, UsageStatus } from "./tweaks/usage-slots"
 
 const SPEND_ENABLED = spendSetting("enabled")
+const QUOTA_HISTORY = quotaSetting("history")
 
 export default Plugin.define({
   id: "opencode-tweaks.tui",
@@ -61,6 +64,31 @@ export default Plugin.define({
               context.ui.toast.show({
                 variant: "error",
                 title: "Tweaks",
+                message: error instanceof Error ? error.message : String(error),
+              })
+            } finally {
+              dialogOpen = false
+            }
+          },
+        },
+        {
+          id: "opencode-tweaks.quota",
+          title: "Quota history",
+          description: "Open the daily quota report",
+          group: "Tweaks",
+          palette: true,
+          slash: { name: "quota" },
+          enabled: () => store.read(quotaTweak, QUOTA_HISTORY).value === true,
+          run: async () => {
+            if (dialogOpen) return
+
+            dialogOpen = true
+            try {
+              await openQuotaDialog(context, store)
+            } catch (error) {
+              context.ui.toast.show({
+                variant: "error",
+                title: "Quota history",
                 message: error instanceof Error ? error.message : String(error),
               })
             } finally {

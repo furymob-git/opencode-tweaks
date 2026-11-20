@@ -179,8 +179,6 @@ describe("quotaTweak", () => {
       "workSun",
       "history",
       "historyDays",
-      "historyMissing",
-      "historyMinDays",
     ])
   })
 
@@ -234,25 +232,14 @@ describe("quotaTweak", () => {
     expect(width?.default).toBe("auto")
   })
 
-  it("draws a week of history by default", () => {
+  it("reports a week of history by default", () => {
     const history = quotaTweak.settings.find((setting) => setting.id === "history")
     const days = quotaTweak.settings.find((setting) => setting.id === "historyDays")
     expect(history?.kind).toBe("boolean")
     expect(history?.default).toBe(true)
     expect(days?.kind).toBe("select")
-    expect(days?.values).toEqual([7, 14])
+    expect(days?.values).toEqual([7, 14, 30])
     expect(days?.default).toBe(7)
-  })
-
-  it("hides missing days and waits for two readings by default", () => {
-    const missing = quotaTweak.settings.find((setting) => setting.id === "historyMissing")
-    const minimum = quotaTweak.settings.find((setting) => setting.id === "historyMinDays")
-    expect(missing?.kind).toBe("boolean")
-    expect(missing?.default).toBe(false)
-    expect(minimum?.kind).toBe("number")
-    expect(minimum?.default).toBe(2)
-    expect(minimum?.min).toBe(1)
-    expect(minimum?.max).toBe(14)
   })
 })
 

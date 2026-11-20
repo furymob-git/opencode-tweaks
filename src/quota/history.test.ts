@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  dayLabel,
   type HistoryEntry,
   historyDays,
-  historyLabel,
   historySeries,
   historySpent,
   recordHistory,
-  sparkline,
 } from "./history"
 
 const day = (text: string) => new Date(`${text}T12:00:00`).getTime()
@@ -110,40 +109,17 @@ describe("historySpent", () => {
   })
 })
 
-describe("sparkline", () => {
-  it("maps the largest day to a full block and a quiet day to the lowest one", () => {
-    expect(sparkline([0, 2, 4], 3)).toBe("▁▅█")
+describe("dayLabel", () => {
+  it("names today and yesterday", () => {
+    expect(dayLabel("2026-11-20", "2026-11-20")).toBe("Today")
+    expect(dayLabel("2026-11-19", "2026-11-20")).toBe("Yest.")
   })
 
-  it("leaves missing days blank", () => {
-    expect(sparkline([undefined, 1], 2)).toBe(" █")
+  it("names an older day with its weekday and date", () => {
+    expect(dayLabel("2026-11-18", "2026-11-20")).toBe("Wed 18")
   })
 
-  it("keeps a tiny day from filling the row", () => {
-    expect(sparkline([0.1, 0.1], 2)).toBe("▂▂")
-  })
-
-  it("scales against the day's allowance", () => {
-    expect(sparkline([0.1], 1, 3.36)).toBe("▂")
-    expect(sparkline([1, 2], 2, 4)).toBe("▃▅")
-  })
-
-  it("draws a dot for a missing day when asked", () => {
-    expect(sparkline([undefined, 0.1], 2, 1, "·")).toBe("·▂")
-  })
-
-  it("groups days into fewer columns", () => {
-    expect(sparkline([1, 1, 2, 2], 2)).toBe("▅█")
-  })
-
-  it("handles an empty series", () => {
-    expect(sparkline([], 7)).toBe("")
-  })
-})
-
-describe("historyLabel", () => {
-  it("names a week and two weeks", () => {
-    expect(historyLabel(7)).toBe("wk")
-    expect(historyLabel(14)).toBe("2wk")
+  it("keeps an unreadable key as it is", () => {
+    expect(dayLabel("not-a-day", "2026-11-20")).toBe("not-a-day")
   })
 })
