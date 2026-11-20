@@ -268,7 +268,7 @@ function QuotaDialog(props: DialogProps) {
         when={!loading()}
         fallback={
           <box paddingLeft={1} paddingRight={1}>
-            <text fg={theme().text.muted}>Reading quota…</text>
+            <text fg={theme().text.muted}>Reading quota...</text>
           </box>
         }
       >
@@ -360,7 +360,7 @@ function DayLine(props: {
   const bar = createMemo(() => barParts(share(), props.width))
   const percent = () => {
     const value = spent()
-    return value === undefined ? "–" : formatPercent(value, 1)
+    return value === undefined ? "-" : formatPercent(value, 1)
   }
   const color = () => {
     const value = spent()

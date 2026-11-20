@@ -159,11 +159,11 @@ describe("dayBefore", () => {
 
 describe("rangeLabel", () => {
   it("drops the repeated month", () => {
-    expect(rangeLabel(["2026-11-16", "2026-11-22"])).toBe("Nov 16 – 22")
+    expect(rangeLabel(["2026-11-16", "2026-11-22"])).toBe("Nov 16-22")
   })
 
   it("names both months across a boundary", () => {
-    expect(rangeLabel(["2026-11-30", "2026-12-06"])).toBe("Nov 30 – Dec 6")
+    expect(rangeLabel(["2026-11-30", "2026-12-06"])).toBe("Nov 30 - Dec 6")
   })
 
   it("stays empty without days", () => {
