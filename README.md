@@ -137,10 +137,15 @@ the row. The budget resets at local midnight, and a changed provider reset or wo
 
 ### Quota history
 
-`/quota` opens a daily report for the quota windows the sidebar follows. It records one reading per day and lists the
-percentage points spent on each of the last 7, 14, or 30 days, newest first. A day without a reading shows a dash, and a
-day above its planned share turns orange. The footer sums the window and gives the average per day; `esc` closes it,
-`←`/`→` switches the window, and `r` reads the quota again.
+`/quota` opens a daily report for the quota window the sidebar follows. It records one reading per day and lists the
+percentage points spent on each of seven days, with a bar scaled to the day's planned share. A day without a reading
+shows a dash, and a day above its share turns orange. `←`/`→` moves the report one week back and forward again, up to
+three weeks behind today, which is all the history keeps; `r` reads the quota again and `esc` closes it.
+
+`Week view` is on by default: the rows run Monday to Sunday for the current week, and the arrows move a whole week.
+Turn it off for a rolling window that ends today, where the arrows move seven days at a time. The header names the
+provider and the window, with the day's budget the bars are measured against. The footer sums the days on screen and
+gives the average per day.
 
 A full bar stands for the day's planned share, the same allowance the `day` row uses, with one percentage point as the
 smallest scale, so a quiet day stays short instead of filling the row. The reading of a day is the last one the panel
@@ -148,8 +153,8 @@ saw, and a day without a reading never borrows the previous day's baseline. Hist
 the provider reset moves, and starts again from the first reading of the new window. The panel records while it is on;
 opening `/quota` records today's reading too, so the report is current even when the panel is off.
 
-`Daily history` turns recording off and removes `/quota` from the palette and slash completion. `History days` picks the
-opening window. The command also appears in the palette under `Tweaks`, with id `opencode-tweaks.quota`.
+`Daily history` turns recording off and removes `/quota` from the palette and slash completion. The command also
+appears in the palette under `Tweaks`, with id `opencode-tweaks.quota`.
 
 ### Spend
 

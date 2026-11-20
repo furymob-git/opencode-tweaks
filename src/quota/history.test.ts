@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest"
 import {
+  dayBefore,
   dayLabel,
   type HistoryEntry,
   historyDays,
   historySeries,
   historySpent,
+  rangeLabel,
   recordHistory,
+  weekDays,
 } from "./history"
 
 const day = (text: string) => new Date(`${text}T12:00:00`).getTime()
@@ -26,6 +29,25 @@ describe("historyDays", () => {
 
   it("covers one day when asked for less", () => {
     expect(historyDays(day("2026-11-03"), 0)).toEqual(["2026-11-03"])
+  })
+})
+
+describe("weekDays", () => {
+  it("starts the week on Monday", () => {
+    expect(weekDays(day("2026-11-20"))).toEqual([
+      "2026-11-16",
+      "2026-11-17",
+      "2026-11-18",
+      "2026-11-19",
+      "2026-11-20",
+      "2026-11-21",
+      "2026-11-22",
+    ])
+  })
+
+  it("keeps Sunday in the week that started six days earlier", () => {
+    expect(weekDays(day("2026-11-22"))[0]).toBe("2026-11-16")
+    expect(weekDays(day("2026-11-16"))[0]).toBe("2026-11-16")
   })
 })
 
@@ -121,5 +143,30 @@ describe("dayLabel", () => {
 
   it("keeps an unreadable key as it is", () => {
     expect(dayLabel("not-a-day", "2026-11-20")).toBe("not-a-day")
+  })
+})
+
+describe("dayBefore", () => {
+  it("steps back one local day", () => {
+    expect(dayBefore("2026-11-20")).toBe("2026-11-19")
+    expect(dayBefore("2026-12-01")).toBe("2026-11-30")
+  })
+
+  it("gives nothing for an unreadable key", () => {
+    expect(dayBefore("not-a-day")).toBeUndefined()
+  })
+})
+
+describe("rangeLabel", () => {
+  it("drops the repeated month", () => {
+    expect(rangeLabel(["2026-11-16", "2026-11-22"])).toBe("Nov 16 – 22")
+  })
+
+  it("names both months across a boundary", () => {
+    expect(rangeLabel(["2026-11-30", "2026-12-06"])).toBe("Nov 30 – Dec 6")
+  })
+
+  it("stays empty without days", () => {
+    expect(rangeLabel([])).toBe("")
   })
 })

@@ -3,22 +3,24 @@ import type { Context } from "@opencode/plugin/tui/context"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
-import { barParts, errorText, formatPercent, formatReset } from "../quota/format"
+import { barParts, errorText, formatPercent } from "../quota/format"
 import {
+  dayBefore,
   dayLabel,
   type HistoryEntry,
   historyDays,
   historySeries,
   historySpent,
+  rangeLabel,
   recordHistory,
+  weekDays,
 } from "../quota/history"
 import { dayKey, exactRemaining, longestWindow, paceSignature, startPace } from "../quota/pace"
 import { Quota, type QuotaSnapshot } from "../rpc"
 import { quotaSetting, quotaTweak } from "./quota"
 import type { SettingsStore } from "./settings"
-import { nextValue } from "./types"
 
-const DAYS = quotaSetting("historyDays")
+const WEEK = quotaSetting("historyWeek")
 const ONLY_CURRENT = quotaSetting("onlyCurrentModel")
 const RESERVE = quotaSetting("reserve")
 /** Workday settings ordered like `Date#getDay`, with Sunday first. */
@@ -37,6 +39,8 @@ const MIN_BAR = 10
 const MAX_BAR = 30
 const LABEL_WIDTH = 7
 const PERCENT_WIDTH = 7
+/** The retention window holds a month, so four weeks fit behind today. */
+const MAX_WEEKS_BACK = 3
 
 interface DialogProps {
   readonly context: Context
@@ -68,7 +72,7 @@ export async function openQuotaDialog(context: Context, store: SettingsStore): P
 function QuotaDialog(props: DialogProps) {
   const theme = () => props.context.theme.surface("dialog")
   const dimensions = useTerminalDimensions()
-  const [days, setDays] = createSignal(readDays())
+  const [weeksBack, setWeeksBack] = createSignal(0)
   const [snapshots, setSnapshots] = createSignal<readonly QuotaSnapshot[]>()
   const [moment, setMoment] = createSignal(Date.now())
   const [loading, setLoading] = createSignal(true)
@@ -88,33 +92,49 @@ function QuotaDialog(props: DialogProps) {
     return typeof value === "number" ? value : 0
   })
   const onlyCurrent = () => props.store.read(quotaTweak, ONLY_CURRENT).value === true
+  const weekly = createMemo(() => props.store.read(quotaTweak, WEEK).value === true)
   // The dialog is content-sized, so the bar takes a steady share of the screen
   // rather than the sidebar's measured column.
   const barWidth = createMemo(() =>
     Math.max(MIN_BAR, Math.min(MAX_BAR, Math.floor(dimensions().width / 2))),
   )
 
+  /** The seven days on screen, oldest first, shifted back by whole weeks. */
+  function reportDays(at: number): string[] {
+    const shifted = daysBack(at, weeksBack() * 7)
+    return weekly() ? weekDays(shifted) : historyDays(shifted, 7)
+  }
+
+  function periodLabel(): string {
+    const days = reportDays(moment())
+    if (!weekly()) return `7 days · ${rangeLabel(days)}`
+
+    const back = weeksBack()
+    const name = back === 0 ? "This week" : back === 1 ? "Last week" : `${back} weeks ago`
+    return `${name} · ${rangeLabel(days)}`
+  }
+
   const reports = createMemo<Report[]>(() => {
     const list = snapshots()
     if (!list) return []
 
     const at = moment()
-    const count = days()
-    const keys = historyDays(at, count)
+    const keys = reportDays(at)
     const today = dayKey(at)
     const mask = workdays()
     const keep = reserve()
     const signature = paceSignature(mask, keep)
-    // A month of rows does not fit a short terminal, so the list keeps the most
-    // recent days and the summary says how many older ones it left out.
-    const limit = Math.max(5, dimensions().height - 14)
+    // The day before the first row is its baseline: without it, that day's
+    // spend would read as zero instead of what it used since the day before.
+    const baseline = dayBefore(keys[0] ?? "")
 
     return list.flatMap((snapshot) => {
       const window = longestWindow(snapshot.windows)
       if (!window) return []
 
       const entry = history[paceKey(snapshot.providerID, window.key)]
-      const values = historySeries(entry, keys)
+      const series = historySeries(entry, baseline ? [baseline, ...keys] : keys)
+      const values = baseline ? series.slice(1) : series
       const readings = values.filter((value) => value !== undefined).length
       const highest = values.reduce<number>((top, value) => Math.max(top, value ?? 0), 0)
       // A full bar stands for the day's planned share, with one point as the
@@ -130,22 +150,19 @@ function QuotaDialog(props: DialogProps) {
         at,
       )
       const scale = pace.allowance > 0 ? pace.allowance : Math.max(1, highest)
-      const rows = keys
-        .map((day, index) => ({
-          key: day,
-          label: dayLabel(day, today),
-          spent: values[index],
-        }))
-        .reverse()
+      const rows = keys.map((day, index) => ({
+        key: day,
+        label: dayLabel(day, today),
+        spent: values[index],
+      }))
+      // A calendar week reads Monday first; a rolling week keeps today on top.
+      if (!weekly()) rows.reverse()
 
       return [
         {
           provider: snapshot.provider,
           window: window.key,
-          remaining: exactRemaining(window),
-          resetsAt: window.resetsAt,
-          rows: rows.slice(0, limit),
-          hidden: Math.max(0, rows.length - limit),
+          rows,
           spent: historySpent(values),
           readings,
           scale,
@@ -200,12 +217,8 @@ function QuotaDialog(props: DialogProps) {
     stopped = true
   })
 
-  function cycleDays(direction: 1 | -1) {
-    const next = nextValue(DAYS, days(), direction)
-    if (typeof next !== "number") return
-
-    setDays(next)
-    void props.store.set(quotaTweak, DAYS, next)
+  function moveWeek(direction: 1 | -1) {
+    setWeeksBack((current) => Math.max(0, Math.min(MAX_WEEKS_BACK, current + direction)))
   }
 
   props.context.keymap.layer(() => ({
@@ -215,12 +228,12 @@ function QuotaDialog(props: DialogProps) {
       {
         id: "opencode-tweaks.quota.left",
         bind: "left",
-        run: () => cycleDays(-1),
+        run: () => moveWeek(1),
       },
       {
         id: "opencode-tweaks.quota.right",
         bind: "right",
-        run: () => cycleDays(1),
+        run: () => moveWeek(-1),
       },
       {
         id: "opencode-tweaks.quota.refresh",
@@ -248,7 +261,7 @@ function QuotaDialog(props: DialogProps) {
             esc
           </text>
         </box>
-        <text fg={theme().text.muted}>{`${days()} days · one reading per day`}</text>
+        <text fg={theme().text.muted}>{periodLabel()}</text>
       </box>
 
       <Show
@@ -276,35 +289,26 @@ function QuotaDialog(props: DialogProps) {
 
         <Show when={!error()}>
           <For each={reports()}>
-            {(report) => <ReportSection report={report} width={barWidth()} now={moment()} />}
+            {(report) => <ReportSection report={report} width={barWidth()} />}
           </For>
         </Show>
       </Show>
 
       <box paddingLeft={1} paddingRight={1}>
         <box flexDirection="row" gap={2} flexShrink={0}>
-          <Hint title="window" key="←/→" />
+          <Hint title={weekly() ? "week" : "days"} key="←/→" />
           <Hint title="refresh" key="r" />
         </box>
       </box>
     </box>
   )
-
-  function readDays(): number {
-    const value = props.store.read(quotaTweak, DAYS).value
-    return typeof value === "number" ? value : 7
-  }
 }
 
-/** One provider's daily report, newest day first. */
+/** One provider's daily report. */
 interface Report {
   readonly provider: string
   readonly window: string
-  readonly remaining: number
-  readonly resetsAt: string
   readonly rows: readonly ReportDay[]
-  /** Older days the terminal was too short to list. */
-  readonly hidden: number
   readonly spent: number
   readonly readings: number
   readonly scale: number
@@ -317,11 +321,7 @@ interface ReportDay {
   readonly spent: number | undefined
 }
 
-function ReportSection(props: {
-  readonly report: Report
-  readonly width: number
-  readonly now: number
-}) {
+function ReportSection(props: { readonly report: Report; readonly width: number }) {
   const theme = useDialogTheme()
   const average = () => (props.report.readings > 0 ? props.report.spent / props.report.readings : 0)
 
@@ -332,7 +332,9 @@ function ReportSection(props: {
           {props.report.provider}
         </text>
         <text flexShrink={0} fg={theme().text.muted}>
-          {`${props.report.window} · ${formatPercent(props.report.remaining, 1)} left`}
+          {props.report.allowance > 0
+            ? `${props.report.window} · ${formatPercent(props.report.allowance, 1)} / day`
+            : props.report.window}
         </text>
       </box>
 
@@ -342,14 +344,7 @@ function ReportSection(props: {
         </For>
       </box>
 
-      <box flexDirection="row" gap={2}>
-        <text flexGrow={1} fg={theme().text.muted}>
-          {summary(props.report, average())}
-        </text>
-        <text flexShrink={0} fg={theme().text.muted}>
-          {`resets ${formatReset(props.report.resetsAt, props.now)}`}
-        </text>
-      </box>
+      <text fg={theme().text.muted}>{summary(props.report, average())}</text>
     </box>
   )
 }
@@ -409,14 +404,15 @@ function paceKey(providerID: string, windowKey: string): string {
   return `${providerID}:${windowKey}`
 }
 
-/** The line under the rows: how much was spent, and against which share. */
+/** The timestamp `days` local days before `time`. */
+function daysBack(time: number, days: number): number {
+  const cursor = new Date(time)
+  cursor.setDate(cursor.getDate() - days)
+  return cursor.getTime()
+}
+
+/** The line under the rows: how much the days on screen add up to. */
 function summary(report: Report, average: number): string {
-  const parts = [
-    `${report.readings} ${report.readings === 1 ? "day" : "days"}`,
-    `${formatPercent(report.spent, 1)} spent`,
-    `${formatPercent(average, 1)} avg`,
-  ]
-  if (report.allowance > 0) parts.push(`${formatPercent(report.allowance, 1)} budget`)
-  if (report.hidden > 0) parts.push(`${report.hidden} older hidden`)
-  return parts.join(" · ")
+  if (report.readings === 0) return "No readings in these days"
+  return `${formatPercent(report.spent, 1)} spent · ${formatPercent(average, 1)} avg`
 }
