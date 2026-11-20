@@ -1,4 +1,4 @@
-import { defineTweak } from "./types"
+import { defineTweak, type TweakSetting } from "./types"
 
 /**
  * The quota sidebar is the first tweak. Its settings land before the panel so
@@ -161,9 +161,8 @@ export const quotaTweak = defineTweak({
     },
     {
       id: "history",
-      title: "History",
-      description:
-        "Add a sparkline of the quota spent on each of the last days under the quota rows.",
+      title: "Daily history",
+      description: "Record one quota reading per day and report it with /quota.",
       category: "History",
       kind: "boolean",
       default: true,
@@ -171,31 +170,19 @@ export const quotaTweak = defineTweak({
     {
       id: "historyDays",
       title: "History days",
-      description: "How many calendar days the sparkline covers.",
+      description: "How many calendar days the /quota report covers.",
       category: "History",
       kind: "select",
       default: 7,
-      values: [7, 14],
-      labels: ["7 days", "14 days"],
-    },
-    {
-      id: "historyMissing",
-      title: "Missing days",
-      description: "Show a dot for a day without a reading instead of leaving it blank.",
-      category: "History",
-      kind: "boolean",
-      default: false,
-    },
-    {
-      id: "historyMinDays",
-      title: "Minimum days",
-      description: "Days with a reading before the history row appears.",
-      category: "History",
-      kind: "number",
-      default: 2,
-      min: 1,
-      max: 14,
-      step: 1,
+      values: [7, 14, 30],
+      labels: ["7 days", "14 days", "30 days"],
     },
   ],
 })
+
+/** One setting of the quota tweak, for the panel and the report. */
+export function quotaSetting(id: string): TweakSetting {
+  const found = quotaTweak.settings.find((item) => item.id === id)
+  if (!found) throw new Error(`Quota setting "${id}" is missing`)
+  return found
+}

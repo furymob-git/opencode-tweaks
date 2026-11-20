@@ -4,15 +4,7 @@ import { type BoxRenderable, CliRenderEvents, TextAttributes } from "@opentui/co
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { barParts, errorText, formatPercent, formatReset, levelOf } from "../quota/format"
-import {
-  type HistoryEntry,
-  historyDays,
-  historyLabel,
-  historySeries,
-  historySpent,
-  recordHistory,
-  sparkline,
-} from "../quota/history"
+import { type HistoryEntry, recordHistory } from "../quota/history"
 import {
   dayKey,
   endOfDay,
@@ -27,9 +19,8 @@ import {
   startPace,
 } from "../quota/pace"
 import { Quota, type QuotaSnapshot, type QuotaWindowSnapshot } from "../rpc"
-import { quotaTweak } from "./quota"
+import { quotaSetting, quotaTweak } from "./quota"
 import type { SettingsStore } from "./settings"
-import type { TweakSetting } from "./types"
 
 /**
  * The sidebar content is narrower than the 42-column sidebar itself. Cap the row
@@ -42,35 +33,26 @@ const MIN_PERCENT_WIDTH = 3
 const POLL_MS = 120_000
 const RETRY_MS = 20_000
 
-function setting(id: string): TweakSetting {
-  const found = quotaTweak.settings.find((item) => item.id === id)
-  if (!found) throw new Error(`Quota setting "${id}" is missing`)
-  return found
-}
-
-const ENABLED = setting("enabled")
-const BAR_WIDTH = setting("barWidth")
-const PERCENT = setting("percent")
-const PERCENT_DECIMALS = setting("percentDecimals")
-const SHOW_RESET = setting("showReset")
-const PROVIDER_ALIGN = setting("providerAlign")
-const PROVIDER_TAB = setting("providerTab")
-const ONLY_CURRENT = setting("onlyCurrentModel")
-const DAILY_BUDGET = setting("dailyBudget")
-const RESERVE = setting("reserve")
-const HISTORY = setting("history")
-const HISTORY_DAYS = setting("historyDays")
-const HISTORY_MISSING = setting("historyMissing")
-const HISTORY_MIN_DAYS = setting("historyMinDays")
+const ENABLED = quotaSetting("enabled")
+const BAR_WIDTH = quotaSetting("barWidth")
+const PERCENT = quotaSetting("percent")
+const PERCENT_DECIMALS = quotaSetting("percentDecimals")
+const SHOW_RESET = quotaSetting("showReset")
+const PROVIDER_ALIGN = quotaSetting("providerAlign")
+const PROVIDER_TAB = quotaSetting("providerTab")
+const ONLY_CURRENT = quotaSetting("onlyCurrentModel")
+const DAILY_BUDGET = quotaSetting("dailyBudget")
+const RESERVE = quotaSetting("reserve")
+const HISTORY = quotaSetting("history")
 /** Workday settings ordered like `Date#getDay`, with Sunday first. */
 const WORKDAYS = [
-  setting("workSun"),
-  setting("workMon"),
-  setting("workTue"),
-  setting("workWed"),
-  setting("workThu"),
-  setting("workFri"),
-  setting("workSat"),
+  quotaSetting("workSun"),
+  quotaSetting("workMon"),
+  quotaSetting("workTue"),
+  quotaSetting("workWed"),
+  quotaSetting("workThu"),
+  quotaSetting("workFri"),
+  quotaSetting("workSat"),
 ]
 
 /** The stored budget of one provider's pacing window. */
@@ -139,17 +121,6 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
     WORKDAYS.map((item) => props.store.read(quotaTweak, item).value === true),
   )
   const historyOn = createMemo(() => props.store.read(quotaTweak, HISTORY).value === true)
-  const historyCount = createMemo(() => {
-    const value = props.store.read(quotaTweak, HISTORY_DAYS).value
-    return typeof value === "number" ? value : 7
-  })
-  const historyMissing = createMemo(
-    () => props.store.read(quotaTweak, HISTORY_MISSING).value === true,
-  )
-  const historyMinDays = createMemo(() => {
-    const value = props.store.read(quotaTweak, HISTORY_MIN_DAYS).value
-    return typeof value === "number" ? value : 2
-  })
 
   // The day's allowance is frozen at the first reading of the day, so the bar
   // only moves when quota is spent instead of shrinking on every refresh.
@@ -201,35 +172,6 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
       })
     }
   })
-
-  /** The per-day spending series for one provider, or nothing when it has none. */
-  function historyOf(snapshot: QuotaSnapshot): HistoryRow | undefined {
-    if (!historyOn()) return undefined
-
-    const window = longestWindow(snapshot.windows)
-    if (!window) return undefined
-
-    const key = paceKey(snapshot.providerID, window.key)
-    const entry = history[key]
-    if (!entry) return undefined
-
-    const count = historyCount()
-    const values = historySeries(entry, historyDays(now(), count))
-    // A partial day alone has no baseline to sit against, so the row waits for
-    // the configured number of days with a reading.
-    const readings = values.filter((value) => value !== undefined).length
-    if (readings < Math.min(historyMinDays(), count)) return undefined
-
-    return {
-      label: historyLabel(count),
-      values,
-      spent: historySpent(values),
-      // A full block stands for the day's planned share, with one percentage
-      // point as the smallest scale, so a quiet day stays a small bar.
-      scale: Math.max(1, pace[key]?.allowance ?? 0),
-      gap: historyMissing() ? "·" : " ",
-    }
-  }
 
   /** What the daily bar shows for one provider, or nothing when it has none. */
   function budgetOf(snapshot: QuotaSnapshot): DayBudget | undefined {
@@ -343,15 +285,7 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
           return Math.max(width, formatPercent(shown, decimals()).length)
         }, 0)
       : 0
-    const spent = historyOn()
-      ? snapshots().reduce((width, snapshot) => {
-          const row = historyOf(snapshot)
-          if (!row) return width
-          return Math.max(width, formatPercent(row.spent, decimals()).length)
-        }, 0)
-      : 0
-
-    return Math.max(MIN_PERCENT_WIDTH, widest, daily, spent)
+    return Math.max(MIN_PERCENT_WIDTH, widest, daily)
   })
 
   // Pad the reset column to its own content so the widest value keeps no leading gap.
@@ -395,7 +329,6 @@ function QuotaBody(props: { readonly context: Context; readonly store: SettingsS
             context={props.context}
             snapshot={snapshot}
             budget={budgetOf(snapshot)}
-            history={historyOf(snapshot)}
             panelWidth={panelWidth()}
             width={width()}
             percentWidth={percentWidth()}
@@ -424,7 +357,6 @@ function QuotaSection(props: {
   readonly context: Context
   readonly snapshot: QuotaSnapshot
   readonly budget?: DayBudget
-  readonly history?: HistoryRow
   readonly panelWidth: number
   readonly width: number
   readonly percentWidth: number
@@ -496,20 +428,6 @@ function QuotaSection(props: {
             />
           )}
         </Show>
-        <Show when={props.history}>
-          {(history: () => HistoryRow) => (
-            <HistoryLine
-              label={history().label}
-              values={history().values}
-              spent={history().spent}
-              scale={history().scale}
-              gap={history().gap}
-              width={props.width}
-              percentWidth={props.percentWidth}
-              decimals={props.decimals}
-            />
-          )}
-        </Show>
       </Show>
     </box>
   )
@@ -519,15 +437,6 @@ function QuotaSection(props: {
 interface DayBudget {
   readonly progress: PaceProgress
   readonly rest: boolean
-}
-
-/** The daily spending series drawn under one provider's rows. */
-interface HistoryRow {
-  readonly label: string
-  readonly values: readonly (number | undefined)[]
-  readonly spent: number
-  readonly scale: number
-  readonly gap: string
 }
 
 function paceKey(providerID: string, windowKey: string): string {
@@ -575,45 +484,6 @@ function DayRow(props: {
           {props.rest ? "rest" : reset()}
         </text>
       </Show>
-    </box>
-  )
-}
-
-function HistoryLine(props: {
-  readonly label: string
-  readonly values: readonly (number | undefined)[]
-  readonly spent: number
-  readonly scale: number
-  readonly gap: string
-  readonly width: number
-  readonly percentWidth: number
-  readonly decimals: number
-}) {
-  const context = usePlugin()
-  const theme = () => context.theme
-  const color = () => (props.spent > 0 ? theme().hue.accent[200] : theme().text.muted)
-  // Pad to the bar column so the percent stays on the same column as the rows
-  // above, even when the series is shorter than the bar.
-  const spark = createMemo(() =>
-    sparkline(
-      props.values,
-      Math.max(1, Math.min(props.width, props.values.length)),
-      props.scale,
-      props.gap,
-    ).padEnd(props.width),
-  )
-
-  return (
-    <box flexDirection="row" gap={1}>
-      <text flexShrink={0} fg={theme().text.base}>
-        {props.label.padEnd(LABEL_WIDTH)}
-      </text>
-      <text flexShrink={0} fg={color()}>
-        {spark()}
-      </text>
-      <text flexShrink={0} fg={color()}>
-        {formatPercent(props.spent, props.decimals).padStart(props.percentWidth)}
-      </text>
     </box>
   )
 }

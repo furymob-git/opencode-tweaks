@@ -11,8 +11,8 @@ optional, and the defaults stay exactly where they are.
 
 ## Status
 
-Early development. The `/tweaks` menu, the OpenCode Go quota sidebar, and the `/spend` report are in place. Both the
-tweak list and the configuration format may change before the first stable release.
+Early development. The `/tweaks` menu, the OpenCode Go quota sidebar, the `/quota` history report, and `/spend` are in
+place. Both the tweak list and the configuration format may change before the first stable release.
 
 ## Principles
 
@@ -95,13 +95,13 @@ Resetting a setting drops the local value, so the option or default applies agai
 
 ## Tweaks
 
-| Tweak    | What it does                                              | Default |
-| -------- | --------------------------------------------------------- | ------- |
-| `quota`  | Provider quota, reset times, a daily budget, and history. | On      |
-| `spend`  | `/spend` spending report for recent sessions.             | On      |
-| `tokens` | Token usage per turn, plus session totals at the bottom.  | On      |
-| `cost`   | Cost per turn, plus session totals at the bottom.         | On      |
-| `model`  | Current model list price and peak state in the sidebar.   | On      |
+| Tweak    | What it does                                             | Default |
+| -------- | -------------------------------------------------------- | ------- |
+| `quota`  | Provider quota, daily budget, and the `/quota` report.   | On      |
+| `spend`  | `/spend` spending report for recent sessions.            | On      |
+| `tokens` | Token usage per turn, plus session totals at the bottom. | On      |
+| `cost`   | Cost per turn, plus session totals at the bottom.        | On      |
+| `model`  | Current model list price and peak state in the sidebar.  | On      |
 
 ### Quota
 
@@ -135,17 +135,21 @@ on every refresh.
 settings choose which weekdays count; every day counts by default, and a day left off gets no budget and shows `rest` on
 the row. The budget resets at local midnight, and a changed provider reset or workday pattern starts a fresh one.
 
-`History` adds a `wk` row under the longest window: a sparkline of the percentage points spent on each of the last seven
-calendar days, with the total on the right. The reading of a day is the last one the panel saw, and a day without a
-reading never borrows the previous day's baseline. `Missing days` draws a dot for those days; it is off by default, so
-they stay blank. The row waits for `Minimum days` readings before it appears (two by default), so a single partial day
-does not stand alone.
+### Quota history
 
-A full block stands for the day's planned share, with one percentage point as the smallest full-height scale. A quiet
-day therefore stays a small bar even when there is no other reading to compare it with, and a `0.1%` day is never drawn
-as a full row. The row keeps the last 31 days on disk, clears when the provider reset moves, and starts again from the
-first reading of the new window. `History days` switches the sparkline between one week (`wk`) and two weeks (`2wk`); a
-narrower bar column groups the days instead of dropping them.
+`/quota` opens a daily report for the quota windows the sidebar follows. It records one reading per day and lists the
+percentage points spent on each of the last 7, 14, or 30 days, newest first. A day without a reading shows a dash, and a
+day above its planned share turns orange. The footer sums the window and gives the average per day; `esc` closes it,
+`←`/`→` switches the window, and `r` reads the quota again.
+
+A full bar stands for the day's planned share, the same allowance the `day` row uses, with one percentage point as the
+smallest scale, so a quiet day stays short instead of filling the row. The reading of a day is the last one the panel
+saw, and a day without a reading never borrows the previous day's baseline. History keeps 31 days on disk, clears when
+the provider reset moves, and starts again from the first reading of the new window. The panel records while it is on;
+opening `/quota` records today's reading too, so the report is current even when the panel is off.
+
+`Daily history` turns recording off and removes `/quota` from the palette and slash completion. `History days` picks the
+opening window. The command also appears in the palette under `Tweaks`, with id `opencode-tweaks.quota`.
 
 ### Spend
 
@@ -268,7 +272,7 @@ src/
     service.ts      credential lookup and quota fetch
     parse.ts        provider response parsing
     pace.ts         daily budget pacing
-    history.ts      daily readings and the sparkline
+    history.ts      daily readings and their labels
     format.ts       percents, reset times, and bars
   spend/
     report.ts       window bounds, sums, and per-model split
@@ -288,6 +292,7 @@ src/
     menu-model.ts   filtering and selection helpers
     quota.ts        quota tweak definition
     quota-panel.tsx sidebar quota panel
+    quota-dialog.tsx /quota daily report dialog
     spend.ts        spend tweak definition
     spend-dialog.tsx /spend report dialog
     tokens.ts       token tweak definition
