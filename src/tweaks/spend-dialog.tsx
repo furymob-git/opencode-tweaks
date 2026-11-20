@@ -216,7 +216,7 @@ function SpendDialog(props: DialogProps) {
         when={!loading()}
         fallback={
           <box paddingLeft={1} paddingRight={1}>
-            <text fg={theme().text.muted}>Reading sessions…</text>
+            <text fg={theme().text.muted}>Reading sessions...</text>
           </box>
         }
       >
@@ -245,7 +245,7 @@ function SpendDialog(props: DialogProps) {
               <Show when={readCache()}>
                 <Metric
                   label="Cache"
-                  value={cache() === undefined ? "—" : formatPercent(cache() ?? 0, 0)}
+                  value={cache() === undefined ? "-" : formatPercent(cache() ?? 0, 0)}
                   detail={
                     cache() === undefined
                       ? undefined
@@ -343,7 +343,7 @@ function ModelLine(props: {
 }) {
   const theme = useDialogTheme()
   const share = () =>
-    props.total > 0 ? formatPercent((props.model.cost / props.total) * 100, 0) : "—"
+    props.total > 0 ? formatPercent((props.model.cost / props.total) * 100, 0) : "-"
 
   return (
     <box flexDirection="row" gap={1}>

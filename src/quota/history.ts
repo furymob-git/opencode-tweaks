@@ -137,18 +137,15 @@ export function dayBefore(day: string): string | undefined {
   return dayKey(date.getTime())
 }
 
-/** The dates a week covers: `Nov 16 – 22`, or `Nov 30 – Dec 6` across months. */
+/** The dates a week covers: `Nov 16-22`, or `Nov 30 - Dec 6` across months. */
 export function rangeLabel(days: readonly string[]): string {
   const start = parseDay(days[0] ?? "")
   const end = parseDay(days[days.length - 1] ?? "")
   if (!start || !end) return ""
 
   const left = `${MONTHS[start.getMonth()]} ${start.getDate()}`
-  const right =
-    start.getMonth() === end.getMonth()
-      ? String(end.getDate())
-      : `${MONTHS[end.getMonth()]} ${end.getDate()}`
-  return `${left} – ${right}`
+  if (start.getMonth() === end.getMonth()) return `${left}-${end.getDate()}`
+  return `${left} - ${MONTHS[end.getMonth()]} ${end.getDate()}`
 }
 
 /** Drops readings older than the retention window, reusing the record when it can. */

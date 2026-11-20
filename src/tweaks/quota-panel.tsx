@@ -477,7 +477,7 @@ function DayRow(props: {
         <span style={{ fg: theme().text.muted }}>{bar().empty}</span>
       </text>
       <text flexShrink={0} fg={props.rest ? theme().text.muted : color()}>
-        {(props.rest ? "–" : formatPercent(shown(), props.decimals)).padStart(props.percentWidth)}
+        {(props.rest ? "-" : formatPercent(shown(), props.decimals)).padStart(props.percentWidth)}
       </text>
       <Show when={props.showReset || props.rest}>
         <text flexShrink={0} fg={theme().text.muted}>
