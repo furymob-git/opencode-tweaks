@@ -16,9 +16,23 @@ export interface HistoryEntry {
   readonly days: Readonly<Record<string, HistoryDay>>
 }
 
-/** Days kept on disk. The `/quota` report draws at most a month of them. */
+/** Days kept on disk. The report draws one week of them. */
 const KEEP_DAYS = 31
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const
 
 /**
  * The calendar days a report covers, oldest first and ending today. Walking
@@ -31,12 +45,19 @@ export function historyDays(now: number, days: number): string[] {
   cursor.setHours(0, 0, 0, 0)
   cursor.setDate(cursor.getDate() - (count - 1))
 
-  const keys: string[] = []
-  for (let index = 0; index < count; index++) {
-    keys.push(dayKey(cursor.getTime()))
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  return keys
+  return walk(cursor, count)
+}
+
+/**
+ * The seven days of the local week that contains `now`, Monday first. A Sunday
+ * belongs to the week that started six days earlier.
+ */
+export function weekDays(now: number): string[] {
+  const cursor = new Date(now)
+  cursor.setHours(0, 0, 0, 0)
+  cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7))
+
+  return walk(cursor, 7)
 }
 
 /**
@@ -100,16 +121,34 @@ export function historySpent(values: readonly (number | undefined)[]): number {
 export function dayLabel(day: string, today: string): string {
   if (day === today) return "Today"
 
-  const date = new Date(`${day}T12:00:00`)
-  if (!Number.isFinite(date.getTime())) return day
-
-  const cursor = new Date(`${today}T12:00:00`)
-  if (Number.isFinite(cursor.getTime())) {
-    cursor.setDate(cursor.getDate() - 1)
-    if (day === dayKey(cursor.getTime())) return "Yest."
-  }
+  const date = parseDay(day)
+  if (!date) return day
+  if (day === dayBefore(today)) return "Yest."
 
   return `${WEEKDAYS[date.getDay()]} ${date.getDate()}`
+}
+
+/** The local day before `day`, or nothing when the key is unreadable. */
+export function dayBefore(day: string): string | undefined {
+  const date = parseDay(day)
+  if (!date) return undefined
+
+  date.setDate(date.getDate() - 1)
+  return dayKey(date.getTime())
+}
+
+/** The dates a week covers: `Nov 16 – 22`, or `Nov 30 – Dec 6` across months. */
+export function rangeLabel(days: readonly string[]): string {
+  const start = parseDay(days[0] ?? "")
+  const end = parseDay(days[days.length - 1] ?? "")
+  if (!start || !end) return ""
+
+  const left = `${MONTHS[start.getMonth()]} ${start.getDate()}`
+  const right =
+    start.getMonth() === end.getMonth()
+      ? String(end.getDate())
+      : `${MONTHS[end.getMonth()]} ${end.getDate()}`
+  return `${left} – ${right}`
 }
 
 /** Drops readings older than the retention window, reusing the record when it can. */
@@ -124,6 +163,23 @@ function pruneDays(
   const next = { ...days }
   for (const key of stale) delete next[key]
   return next
+}
+
+/** Reads `YYYY-MM-DD` as local noon, where no daylight-saving shift applies. */
+function parseDay(day: string): Date | undefined {
+  const date = new Date(`${day}T12:00:00`)
+  return Number.isFinite(date.getTime()) ? date : undefined
+}
+
+/** Walks `count` local days from `start`, collecting their keys. */
+function walk(start: Date, count: number): string[] {
+  const cursor = new Date(start)
+  const keys: string[] = []
+  for (let index = 0; index < count; index++) {
+    keys.push(dayKey(cursor.getTime()))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return keys
 }
 
 function clamp(value: number): number {

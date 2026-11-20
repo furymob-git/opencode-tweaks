@@ -168,14 +168,13 @@ export const quotaTweak = defineTweak({
       default: true,
     },
     {
-      id: "historyDays",
-      title: "History days",
-      description: "How many calendar days the /quota report covers.",
+      id: "historyWeek",
+      title: "Week view",
+      description:
+        "Start the report on Monday and end it on Sunday, instead of the seven days ending today.",
       category: "History",
-      kind: "select",
-      default: 7,
-      values: [7, 14, 30],
-      labels: ["7 days", "14 days", "30 days"],
+      kind: "boolean",
+      default: true,
     },
   ],
 })
